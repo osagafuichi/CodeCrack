@@ -1,0 +1,4 @@
+.build/
+PPIDE.app/
+*.xcodeproj
+.swiftpm/
