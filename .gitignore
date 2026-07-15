@@ -1,1 +1,7 @@
+__pycache__/
+*.py[cod]
 *.local.md
+.pytest_cache/
+.DS_Store
+node_modules/
+.build/
