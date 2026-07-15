@@ -7,7 +7,8 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "PPIDE",
-            path: "Sources/PPIDE"
+            path: "Sources/PPIDE",
+            swiftSettings: [.swiftLanguageMode(.v5)]
         )
     ]
 )

@@ -73,10 +73,14 @@ struct ContentView: View {
         }
     }
 
+    private var language: CodeLanguage {
+        guard let ext = currentFile?.pathExtension else { return .plain }
+        return CodeLanguage.detect(fileExtension: ext)
+    }
+
     @ViewBuilder private var editor: some View {
         if currentFile != nil {
-            TextEditor(text: $text)
-                .font(.system(.body, design: .monospaced))
+            CodeEditor(text: $text, language: language)
                 .navigationTitle(currentFile?.lastPathComponent ?? "")
         } else {
             ContentUnavailableView(
