@@ -17,6 +17,7 @@ struct ContentView: View {
     @State private var consoleOutput = ""
     @State private var showConsole = false
     @State private var isRunning = false
+    @State private var session: RunSession?
 
     var body: some View {
         NavigationSplitView {
@@ -183,9 +184,10 @@ struct ContentView: View {
                         output: consoleOutput,
                         isRunning: isRunning,
                         onClear: { consoleOutput = "" },
-                        onClose: { showConsole = false }
+                        onClose: { showConsole = false; session?.stop() },
+                        onSubmit: sendInput
                     )
-                    .frame(height: 180)
+                    .frame(height: 200)
                 }
             }
             .navigationTitle(activeDocument?.name ?? "")
@@ -327,14 +329,22 @@ struct ContentView: View {
             status = "No run configuration for .\(doc.url.pathExtension)"
             return
         }
+        session?.stop()
         consoleOutput = "$ \(command.display)\n\n"
         isRunning = true
-        Runner.run(command,
-                   onOutput: { consoleOutput += $0 },
-                   onFinish: { code in
-                       consoleOutput += "\n[exited with code \(code)]\n"
-                       isRunning = false
-                   })
+        session = Runner.start(command,
+                               onOutput: { consoleOutput += $0 },
+                               onFinish: { code in
+                                   consoleOutput += "\n[exited with code \(code)]\n"
+                                   isRunning = false
+                                   session = nil
+                               })
+    }
+
+    /// Send a line to the running program's stdin, echoing it in the console.
+    private func sendInput(_ text: String) {
+        session?.send(text)
+        consoleOutput += text + "\n"
     }
 
     // MARK: - Search / replace

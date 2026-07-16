@@ -1,11 +1,14 @@
 import SwiftUI
 
-/// Bottom panel showing output from running the current file.
+/// Bottom panel showing output from running the current file, with a stdin input box.
 struct ConsolePanel: View {
     let output: String
     let isRunning: Bool
     var onClear: () -> Void
     var onClose: () -> Void
+    var onSubmit: (String) -> Void
+
+    @State private var input = ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -22,23 +25,44 @@ struct ConsolePanel: View {
                     .buttonStyle(.plain).foregroundStyle(.secondary)
                     .help("Close")
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
             .background(.bar)
             Divider()
+
             ScrollViewReader { proxy in
                 ScrollView {
                     Text(output.isEmpty ? "No output yet." : output)
-                        .font(.system(.caption, design: .monospaced))
+                        .font(.system(.body, design: .monospaced))
                         .foregroundStyle(output.isEmpty ? .secondary : .primary)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(8)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
                     Color.clear.frame(height: 1).id("bottom")
                 }
                 .onChange(of: output) { _, _ in
                     withAnimation(.linear(duration: 0.1)) { proxy.scrollTo("bottom", anchor: .bottom) }
                 }
+            }
+
+            // stdin input — visible while the program is running.
+            if isRunning {
+                Divider()
+                HStack(spacing: 8) {
+                    Image(systemName: "chevron.right")
+                        .font(.caption).foregroundStyle(.green)
+                    TextField("Type input, press Return to send…", text: $input)
+                        .textFieldStyle(.plain)
+                        .font(.system(.body, design: .monospaced))
+                        .onSubmit {
+                            onSubmit(input)
+                            input = ""
+                        }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(.bar)
             }
         }
         .background(Color(nsColor: .textBackgroundColor))
