@@ -1,13 +1,11 @@
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct ContentView: View {
     @State private var root: FileNode?
     @State private var selection: URL?
     @State private var currentFile: URL?
     @State private var text: String = ""
-    @State private var importing = false
-    @State private var status = "Open a folder to begin"
+    @State private var status = "Open a file or folder to begin"
 
     var body: some View {
         NavigationSplitView {
@@ -19,7 +17,7 @@ struct ContentView: View {
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 Button {
-                    importing = true
+                    if let url = FilePicker.openFileOrFolder() { open(url) }
                 } label: {
                     Label("Open", systemImage: "folder")
                 }
@@ -33,21 +31,6 @@ struct ContentView: View {
                 }
                 .keyboardShortcut("s", modifiers: .command)
                 .disabled(currentFile == nil)
-            }
-        }
-        .fileImporter(isPresented: $importing, allowedContentTypes: [.item]) { result in
-            if case .success(let url) = result {
-                var isDir: ObjCBool = false
-                FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir)
-                if isDir.boolValue {
-                    root = FileTreeBuilder.build(url)
-                    status = url.path
-                } else {
-                    // Picked a file directly: open it and show its folder in the sidebar.
-                    root = FileTreeBuilder.build(url.deletingLastPathComponent())
-                    openFile(url)
-                    selection = url
-                }
             }
         }
         .safeAreaInset(edge: .bottom) {
@@ -98,6 +81,21 @@ struct ContentView: View {
                 systemImage: "doc",
                 description: Text("Select a file from the sidebar.")
             )
+        }
+    }
+
+    /// Route a picked URL: a folder loads into the sidebar; a file opens directly and
+    /// its containing folder populates the sidebar.
+    private func open(_ url: URL) {
+        var isDir: ObjCBool = false
+        FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir)
+        if isDir.boolValue {
+            root = FileTreeBuilder.build(url)
+            status = url.path
+        } else {
+            root = FileTreeBuilder.build(url.deletingLastPathComponent())
+            openFile(url)
+            selection = url
         }
     }
 
