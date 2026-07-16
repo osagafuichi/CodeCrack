@@ -86,7 +86,6 @@ struct ContentView: View {
         } else {
             VStack(spacing: 0) {
                 searchField
-                Divider()
                 if searchQuery.isEmpty {
                     fileTree
                 } else {
