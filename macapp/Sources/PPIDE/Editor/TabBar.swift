@@ -18,10 +18,11 @@ struct TabBar: View {
                     )
                 }
             }
-            .padding(.horizontal, 4)
+            .padding(.leading, 8)
+            .padding(.trailing, 4)
         }
         .frame(height: 38)
-        .background(.bar)
+        .background(Color.editorSurface)
     }
 }
 

@@ -25,6 +25,7 @@ struct ContentView: View {
                 .navigationSplitViewColumnWidth(min: 220, ideal: 280)
         } detail: {
             editor
+                .background(SplitDividerHider())
         }
         .toolbar {
             ToolbarItemGroup(placement: .navigation) {
@@ -92,6 +93,7 @@ struct ContentView: View {
                     searchResultsList
                 }
             }
+            .background(Color.editorSurface)
         }
     }
 
@@ -133,6 +135,7 @@ struct ContentView: View {
                     .tag(node.url)
             }
         }
+        .scrollContentBackground(.hidden)
         .onChange(of: selection) { _, newValue in
             if let newValue { openFile(newValue) }
         }
@@ -165,6 +168,7 @@ struct ContentView: View {
                 }
             }
         }
+        .scrollContentBackground(.hidden)
     }
 
     // MARK: - Editor + tabs + console
