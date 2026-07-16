@@ -9,14 +9,19 @@ struct TabBar: View {
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 0) {
-                ForEach(documents) { doc in
+                ForEach(Array(documents.enumerated()), id: \.element.id) { index, doc in
+                    // Separator between tabs only — never against the active tab's highlight.
+                    if index > 0
+                        && doc.id != activeID
+                        && documents[index - 1].id != activeID {
+                        Divider().frame(height: 16)
+                    }
                     TabItem(
                         doc: doc,
                         isActive: doc.id == activeID,
                         onSelect: { activeID = doc.id },
                         onClose: { onClose(doc) }
                     )
-                    Divider().frame(height: 16)
                 }
             }
         }
