@@ -3,8 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @State private var root: FileNode?
     @State private var selection: URL?
-    @State private var documents: [OpenDocument] = []
-    @State private var activeID: URL?
+    @State private var document: OpenDocument?
     @State private var status = "Open a file or folder to begin"
 
     // Project search
@@ -49,27 +48,22 @@ struct ContentView: View {
                     Label("Run", systemImage: "play.fill")
                 }
                 .keyboardShortcut("r", modifiers: .command)
-                .disabled(activeID == nil || isRunning)
+                .disabled(document == nil || isRunning)
                 Button {
                     save()
                 } label: {
                     Label("Save", systemImage: "square.and.arrow.down")
                 }
                 .keyboardShortcut("s", modifiers: .command)
-                .disabled(activeID == nil)
+                .disabled(document == nil)
             }
         }
         .background {
-            // Hidden shortcuts: ⌘W close tab, ⇧⌘S save as.
-            Group {
-                Button("") { if let doc = activeDocument { close(doc) } }
-                    .keyboardShortcut("w", modifiers: .command)
-                    .disabled(activeID == nil)
-                Button("") { saveAs() }
-                    .keyboardShortcut("s", modifiers: [.command, .shift])
-                    .disabled(activeID == nil)
-            }
-            .opacity(0)
+            // Hidden shortcut: ⇧⌘S save as.
+            Button("") { saveAs() }
+                .keyboardShortcut("s", modifiers: [.command, .shift])
+                .disabled(document == nil)
+                .opacity(0)
         }
         .safeAreaInset(edge: .bottom) { statusBar }
     }
@@ -172,17 +166,13 @@ struct ContentView: View {
         .scrollContentBackground(.hidden)
     }
 
-    // MARK: - Editor + tabs + console
+    // MARK: - Editor + console
 
     @ViewBuilder private var editor: some View {
-        if !documents.isEmpty {
+        if let doc = document {
             VStack(spacing: 0) {
-                TabBar(documents: documents, activeID: $activeID, onClose: close)
-                Divider()
-                if activeID != nil {
-                    CodeEditor(text: activeText, language: activeLanguage)
-                        .id(activeID)
-                }
+                CodeEditor(text: activeText, language: activeLanguage)
+                    .id(doc.id)
                 if showConsole {
                     Divider()
                     ConsolePanel(
@@ -195,7 +185,7 @@ struct ContentView: View {
                     .frame(height: 200)
                 }
             }
-            .navigationTitle(activeDocument?.name ?? "")
+            .navigationTitle(doc.name)
         } else {
             ContentUnavailableView(
                 "No File Open",
@@ -217,31 +207,25 @@ struct ContentView: View {
             .background(Color(nsColor: .windowBackgroundColor))
     }
 
-    // MARK: - Active document
-
-    private var activeDocument: OpenDocument? {
-        documents.first { $0.id == activeID }
-    }
+    // MARK: - Open document
 
     private var activeLanguage: String? {
-        guard let ext = activeID?.pathExtension, !ext.isEmpty else { return nil }
+        guard let ext = document?.url.pathExtension, !ext.isEmpty else { return nil }
         return LanguageMap.name(forExtension: ext)
     }
 
     private var activeText: Binding<String> {
         Binding(
-            get: { activeDocument?.text ?? "" },
+            get: { document?.text ?? "" },
             set: { newValue in
-                guard let idx = documents.firstIndex(where: { $0.id == activeID }) else { return }
-                if documents[idx].text != newValue {
-                    documents[idx].text = newValue
-                    documents[idx].isDirty = true
-                }
+                guard document?.text != newValue else { return }
+                document?.text = newValue
+                document?.isDirty = true
             }
         )
     }
 
-    // MARK: - Open / tabs
+    // MARK: - Open file
 
     private func open(_ url: URL) {
         var isDir: ObjCBool = false
@@ -260,33 +244,22 @@ struct ContentView: View {
         var isDir: ObjCBool = false
         FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir)
         guard !isDir.boolValue else { return }
-        if documents.contains(where: { $0.id == url }) {
-            activeID = url
+        if document?.url == url {
             status = url.path
             return
         }
         let text = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
-        documents.append(OpenDocument(url: url, text: text))
-        activeID = url
+        document = OpenDocument(url: url, text: text)
         status = url.path
-    }
-
-    private func close(_ doc: OpenDocument) {
-        guard let idx = documents.firstIndex(where: { $0.id == doc.id }) else { return }
-        documents.remove(at: idx)
-        if activeID == doc.id {
-            activeID = documents.isEmpty ? nil : documents[min(idx, documents.count - 1)].id
-        }
     }
 
     // MARK: - Save / new
 
     private func save() {
-        guard let idx = documents.firstIndex(where: { $0.id == activeID }) else { return }
-        let doc = documents[idx]
+        guard let doc = document else { return }
         do {
             try doc.text.write(to: doc.url, atomically: true, encoding: .utf8)
-            documents[idx].isDirty = false
+            document?.isDirty = false
             status = "Saved \(doc.name)"
         } catch {
             status = "Save failed: \(error.localizedDescription)"
@@ -294,7 +267,7 @@ struct ContentView: View {
     }
 
     private func saveAs() {
-        guard let doc = activeDocument,
+        guard let doc = document,
               let url = FilePicker.saveDestination(suggestedName: doc.name) else { return }
         do {
             try doc.text.write(to: url, atomically: true, encoding: .utf8)
@@ -326,7 +299,7 @@ struct ContentView: View {
     // MARK: - Run
 
     private func run() {
-        guard let doc = activeDocument else { return }
+        guard let doc = document else { return }
         save()
         showConsole = true
         guard let command = Runner.command(for: doc.url) else {
@@ -371,13 +344,11 @@ struct ContentView: View {
     private func replaceAll() {
         guard let root, !searchQuery.isEmpty else { return }
         let changed = ProjectSearch.replaceAll(searchQuery, with: replaceText, in: root.url)
-        // Reload any open tabs whose files changed on disk.
-        for url in changed {
-            if let idx = documents.firstIndex(where: { $0.id == url }),
-               let reloaded = try? String(contentsOf: url, encoding: .utf8) {
-                documents[idx].text = reloaded
-                documents[idx].isDirty = false
-            }
+        // Reload the open file if it changed on disk.
+        if let url = document?.url, changed.contains(url),
+           let reloaded = try? String(contentsOf: url, encoding: .utf8) {
+            document?.text = reloaded
+            document?.isDirty = false
         }
         status = "Replaced in \(changed.count) file\(changed.count == 1 ? "" : "s")"
         runSearch()

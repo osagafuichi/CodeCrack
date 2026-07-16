@@ -1,6 +1,6 @@
 import Foundation
 
-/// One open file (a tab). `isDirty` tracks unsaved edits.
+/// The currently open file. `isDirty` tracks unsaved edits.
 struct OpenDocument: Identifiable, Equatable {
     let url: URL
     var text: String
