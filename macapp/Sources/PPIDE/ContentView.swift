@@ -21,7 +21,7 @@ struct ContentView: View {
                 Button {
                     importing = true
                 } label: {
-                    Label("Open Folder", systemImage: "folder")
+                    Label("Open", systemImage: "folder")
                 }
                 .keyboardShortcut("o", modifiers: .command)
             }
@@ -35,10 +35,19 @@ struct ContentView: View {
                 .disabled(currentFile == nil)
             }
         }
-        .fileImporter(isPresented: $importing, allowedContentTypes: [.folder]) { result in
+        .fileImporter(isPresented: $importing, allowedContentTypes: [.item]) { result in
             if case .success(let url) = result {
-                root = FileTreeBuilder.build(url)
-                status = url.path
+                var isDir: ObjCBool = false
+                FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir)
+                if isDir.boolValue {
+                    root = FileTreeBuilder.build(url)
+                    status = url.path
+                } else {
+                    // Picked a file directly: open it and show its folder in the sidebar.
+                    root = FileTreeBuilder.build(url.deletingLastPathComponent())
+                    openFile(url)
+                    selection = url
+                }
             }
         }
         .safeAreaInset(edge: .bottom) {
@@ -67,9 +76,9 @@ struct ContentView: View {
             }
         } else {
             ContentUnavailableView(
-                "No Folder Open",
+                "Nothing Open",
                 systemImage: "folder",
-                description: Text("Open a folder (⌘O), then click a file to edit it.")
+                description: Text("Open a file or folder (⌘O) to start.")
             )
         }
     }
