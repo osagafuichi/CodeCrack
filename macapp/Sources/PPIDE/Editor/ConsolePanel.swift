@@ -27,7 +27,7 @@ struct ConsolePanel: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
-            .background(.bar)
+            .background(Color(nsColor: .windowBackgroundColor))
             Divider()
 
             ScrollViewReader { proxy in
@@ -62,7 +62,7 @@ struct ConsolePanel: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
-                .background(.bar)
+                .background(Color(nsColor: .windowBackgroundColor))
             }
         }
         .background(Color(nsColor: .textBackgroundColor))

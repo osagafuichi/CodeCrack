@@ -135,6 +135,7 @@ struct ContentView: View {
                     .tag(node.url)
             }
         }
+        .listStyle(.sidebar)
         .scrollContentBackground(.hidden)
         .onChange(of: selection) { _, newValue in
             if let newValue { openFile(newValue) }
@@ -168,6 +169,7 @@ struct ContentView: View {
                 }
             }
         }
+        .listStyle(.sidebar)
         .scrollContentBackground(.hidden)
     }
 
@@ -213,7 +215,7 @@ struct ContentView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 10)
             .padding(.vertical, 4)
-            .background(.bar)
+            .background(Color(nsColor: .windowBackgroundColor))
     }
 
     // MARK: - Active document
