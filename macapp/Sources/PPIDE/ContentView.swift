@@ -23,6 +23,7 @@ struct ContentView: View {
                 } label: {
                     Label("Open Folder", systemImage: "folder")
                 }
+                .keyboardShortcut("o", modifiers: .command)
             }
             ToolbarItem {
                 Button {
@@ -68,7 +69,7 @@ struct ContentView: View {
             ContentUnavailableView(
                 "No Folder Open",
                 systemImage: "folder",
-                description: Text("Use Open Folder to start.")
+                description: Text("Open a folder (⌘O), then click a file to edit it.")
             )
         }
     }

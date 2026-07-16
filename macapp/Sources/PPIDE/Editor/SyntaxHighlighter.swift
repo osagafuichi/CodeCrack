@@ -2,7 +2,7 @@ import AppKit
 
 /// Languages we ship token rules for. Anything else renders as `.plain`.
 enum CodeLanguage: Equatable {
-    case swift, python, javascript, json, markdown, plain
+    case swift, python, javascript, java, json, markdown, plain
 
     /// Map a file extension to a language. Unknown extensions -> `.plain`.
     static func detect(fileExtension ext: String) -> CodeLanguage {
@@ -10,6 +10,7 @@ enum CodeLanguage: Equatable {
         case "swift":                              return .swift
         case "py", "pyw":                          return .python
         case "js", "jsx", "ts", "tsx", "mjs", "cjs": return .javascript
+        case "java":                               return .java
         case "json":                               return .json
         case "md", "markdown":                     return .markdown
         default:                                   return .plain
@@ -65,6 +66,7 @@ enum SyntaxHighlighter {
         case .swift:      return swiftRules
         case .python:     return pythonRules
         case .javascript: return jsRules
+        case .java:       return javaRules
         case .json:       return jsonRules
         case .markdown:   return markdownRules
         case .plain:      return []
@@ -130,6 +132,24 @@ enum SyntaxHighlighter {
         ]), Palette.keyword),
         Rule(number, Palette.number),
         Rule("`(?:[^`\\\\]|\\\\.)*`", Palette.string),
+        Rule(dqString, Palette.string),
+        Rule(sqString, Palette.string),
+        Rule(lineSlash, Palette.comment),
+        Rule(blockComment, Palette.comment),
+    ]
+
+    private static let javaRules: [Rule] = [
+        Rule(capType, Palette.type),
+        Rule(keywords([
+            "public", "private", "protected", "class", "interface", "enum", "extends",
+            "implements", "abstract", "final", "static", "void", "int", "long", "short",
+            "byte", "char", "boolean", "float", "double", "new", "return", "if", "else",
+            "for", "while", "do", "switch", "case", "default", "break", "continue", "try",
+            "catch", "finally", "throw", "throws", "import", "package", "this", "super",
+            "instanceof", "null", "true", "false", "synchronized", "volatile", "transient",
+            "native", "strictfp", "assert", "var", "record", "sealed", "permits", "yield",
+        ]), Palette.keyword),
+        Rule(number, Palette.number),
         Rule(dqString, Palette.string),
         Rule(sqString, Palette.string),
         Rule(lineSlash, Palette.comment),
