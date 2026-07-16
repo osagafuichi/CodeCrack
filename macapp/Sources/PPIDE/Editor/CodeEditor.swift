@@ -41,7 +41,7 @@ struct CodeEditor: NSViewRepresentable {
         let bg = textStorage.highlightr.theme.themeBackgroundColor ?? .textBackgroundColor
         textView.backgroundColor = bg
         textView.insertionPointColor = dark ? .white : .black
-        textView.textContainerInset = NSSize(width: 4, height: 6)
+        textView.textContainerInset = NSSize(width: 8, height: 10)
         textView.delegate = context.coordinator
         textView.isRichText = false
         textView.allowsUndo = true

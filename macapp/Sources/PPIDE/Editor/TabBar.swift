@@ -9,13 +9,7 @@ struct TabBar: View {
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 0) {
-                ForEach(Array(documents.enumerated()), id: \.element.id) { index, doc in
-                    // Separator between tabs only — never against the active tab's highlight.
-                    if index > 0
-                        && doc.id != activeID
-                        && documents[index - 1].id != activeID {
-                        Divider().frame(height: 16)
-                    }
+                ForEach(documents) { doc in
                     TabItem(
                         doc: doc,
                         isActive: doc.id == activeID,
@@ -24,8 +18,9 @@ struct TabBar: View {
                     )
                 }
             }
+            .padding(.horizontal, 4)
         }
-        .frame(height: 34)
+        .frame(height: 38)
         .background(.bar)
     }
 }
@@ -59,10 +54,21 @@ private struct TabItem: View {
             .opacity((hovering || doc.isDirty) ? 1 : 0)
         }
         .padding(.horizontal, 10)
-        .frame(maxHeight: .infinity)
-        .background(isActive ? Color.accentColor.opacity(0.20) : Color.clear)
+        .padding(.vertical, 5)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(background)
+        )
+        .padding(.horizontal, 3)
+        .padding(.vertical, 4)
         .contentShape(Rectangle())
         .onTapGesture(perform: onSelect)
         .onHover { hovering = $0 }
+    }
+
+    private var background: Color {
+        if isActive { return Color.accentColor.opacity(0.22) }
+        if hovering { return Color.primary.opacity(0.06) }
+        return .clear
     }
 }
