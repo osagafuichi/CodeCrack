@@ -10,6 +10,14 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp .build/release/PPIDE "$APP/Contents/MacOS/PPIDE"
 
+# Copy SwiftPM resource bundles (e.g. Highlightr's highlight.js/CSS) so Bundle.module
+# resolves them at runtime. Without this, Highlightr() returns nil and the app crashes.
+shopt -s nullglob
+for bundle in .build/release/*.bundle; do
+  cp -R "$bundle" "$APP/Contents/Resources/"
+done
+shopt -u nullglob
+
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

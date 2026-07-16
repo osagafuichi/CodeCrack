@@ -33,8 +33,8 @@ final class LineNumberRulerView: NSRulerView {
               let layoutManager = textView.layoutManager,
               let container = textView.textContainer else { return }
 
-        // Gutter background + hairline separator.
-        NSColor.textBackgroundColor.setFill()
+        // Gutter background (match the editor) + hairline separator.
+        (textView.backgroundColor).setFill()
         bounds.fill()
         NSColor.separatorColor.setFill()
         NSRect(x: bounds.maxX - 1, y: bounds.minY, width: 1, height: bounds.height).fill()

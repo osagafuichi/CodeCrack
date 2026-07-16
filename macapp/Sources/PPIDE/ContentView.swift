@@ -74,9 +74,9 @@ struct ContentView: View {
         }
     }
 
-    private var language: CodeLanguage {
-        guard let ext = currentFile?.pathExtension else { return .plain }
-        return CodeLanguage.detect(fileExtension: ext)
+    private var language: String? {
+        guard let ext = currentFile?.pathExtension, !ext.isEmpty else { return nil }
+        return LanguageMap.name(forExtension: ext)
     }
 
     @ViewBuilder private var editor: some View {
