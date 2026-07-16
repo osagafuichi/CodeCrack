@@ -43,6 +43,8 @@ struct CodeEditor: NSViewRepresentable {
         textView.insertionPointColor = dark ? .white : .black
         textView.textContainerInset = NSSize(width: 8, height: 10)
         textView.delegate = context.coordinator
+        textView.isEditable = true
+        textView.isSelectable = true
         textView.isRichText = false
         textView.allowsUndo = true
         textView.usesFindBar = true
@@ -79,6 +81,17 @@ struct CodeEditor: NSViewRepresentable {
         scrollView.verticalRulerView = ruler
         scrollView.hasVerticalRuler = true
         scrollView.rulersVisible = true
+
+        // Put the caret in the editor as soon as it's on screen. Without this the
+        // freshly built NSTextView isn't the window's first responder, so opening a
+        // file shows the text but keystrokes go nowhere until you click into it —
+        // which reads as "the file can't be edited." Deferred because the view has
+        // no window yet at make-time. Runs once per file (makeNSView is keyed by the
+        // document's `.id`), so it doesn't fight the user for focus while typing.
+        DispatchQueue.main.async { [weak textView] in
+            guard let textView, let window = textView.window else { return }
+            window.makeFirstResponder(textView)
+        }
 
         return scrollView
     }
