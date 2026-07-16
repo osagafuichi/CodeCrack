@@ -37,4 +37,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 PLIST
 
 echo "Built $APP"
+
+# `open` only activates an already-running instance; it won't swap in the new binary.
+# Quit any running copy first so the freshly built one actually launches.
+killall PPIDE 2>/dev/null || true
 open "$APP"
