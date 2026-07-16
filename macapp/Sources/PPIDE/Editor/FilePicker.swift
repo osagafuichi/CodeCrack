@@ -17,4 +17,13 @@ enum FilePicker {
         panel.message = "Choose a file or folder to open"
         return panel.runModal() == .OK ? panel.url : nil
     }
+
+    /// Prompts for a destination path (for New File / Save As). Returns nil if cancelled.
+    static func saveDestination(suggestedName: String) -> URL? {
+        let panel = NSSavePanel()
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = suggestedName
+        panel.prompt = "Save"
+        return panel.runModal() == .OK ? panel.url : nil
+    }
 }
