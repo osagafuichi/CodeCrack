@@ -18,6 +18,14 @@ struct ContentView: View {
     @State private var isRunning = false
     @State private var session: RunSession?
 
+    // CodeCrack analysis
+    @State private var findings: [Finding] = []
+    @State private var generatedTests: [GeneratedTest] = []
+    @State private var isAnalyzing = false
+    @State private var showIssues = false
+    @State private var analyzeError: String?
+    @State private var revealLine: Int?
+
     var body: some View {
         NavigationSplitView {
             sidebar
@@ -49,6 +57,13 @@ struct ContentView: View {
                 }
                 .keyboardShortcut("r", modifiers: .command)
                 .disabled(document == nil || isRunning)
+                Button {
+                    analyze()
+                } label: {
+                    Label("Analyze", systemImage: "ladybug")
+                }
+                .keyboardShortcut("b", modifiers: .command)
+                .disabled(document == nil || isAnalyzing || !isPython)
                 Button {
                     save()
                 } label: {
@@ -171,8 +186,21 @@ struct ContentView: View {
     @ViewBuilder private var editor: some View {
         if let doc = document {
             VStack(spacing: 0) {
-                CodeEditor(text: activeText, language: activeLanguage)
+                CodeEditor(text: activeText, language: activeLanguage, revealLine: $revealLine)
                     .id(doc.id)
+                if showIssues {
+                    Divider()
+                    IssuesPanel(
+                        findings: findings,
+                        tests: generatedTests,
+                        isAnalyzing: isAnalyzing,
+                        errorMessage: analyzeError,
+                        onSelect: { line in revealLine = line },
+                        onClear: { findings = []; generatedTests = []; analyzeError = nil },
+                        onClose: { showIssues = false }
+                    )
+                    .frame(height: 220)
+                }
                 if showConsole {
                     Divider()
                     ConsolePanel(
@@ -317,6 +345,40 @@ struct ContentView: View {
                                    isRunning = false
                                    session = nil
                                })
+    }
+
+    // MARK: - Analyze
+
+    /// Whether the open file is Python (the engine's only supported language).
+    private var isPython: Bool {
+        guard let ext = document?.url.pathExtension.lowercased() else { return false }
+        return ext == "py" || ext == "pyw"
+    }
+
+    /// Save the current file, then run the CodeCrack engine and show its findings.
+    private func analyze() {
+        guard let doc = document else { return }
+        save()  // engine reads from disk, so persist the current text first
+        showIssues = true
+        analyzeError = nil
+        isAnalyzing = true
+        status = "Analyzing \(doc.name)…"
+        Analyzer.analyze(doc.url) { result in
+            isAnalyzing = false
+            switch result {
+            case .success(let analysis):
+                findings = analysis.findings
+                generatedTests = analysis.tests
+                analyzeError = nil
+                let n = analysis.summary.findings
+                status = "Analysis found \(n) issue\(n == 1 ? "" : "s") in \(doc.name)"
+            case .failure(let error):
+                findings = []
+                generatedTests = []
+                analyzeError = error.message
+                status = "Analysis failed"
+            }
+        }
     }
 
     /// Send a line to the running program's stdin, echoing it in the console.

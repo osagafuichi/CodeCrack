@@ -13,6 +13,9 @@ struct CodeEditor: NSViewRepresentable {
     @Binding var text: String
     /// highlight.js language name (e.g. "python"), or nil to auto-detect.
     var language: String?
+    /// When set to a 1-indexed line, scroll to and select it, then reset to nil.
+    /// Used by the Issues panel's click-to-jump.
+    var revealLine: Binding<Int?> = .constant(nil)
 
     static let font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
 
@@ -109,6 +112,45 @@ struct CodeEditor: NSViewRepresentable {
         if textStorage.language != language {         // switched to a different file type
             textStorage.language = language
         }
+
+        // Click-to-jump: scroll to and select the requested 1-indexed line, then clear
+        // the binding so tapping the same finding again re-fires.
+        if let target = revealLine.wrappedValue {
+            if let range = charRange(forLine: target, in: textView.string as NSString) {
+                textView.scrollRangeToVisible(range)
+                textView.setSelectedRange(range)
+                textView.window?.makeFirstResponder(textView)
+            }
+            DispatchQueue.main.async { revealLine.wrappedValue = nil }
+        }
+    }
+
+    /// The character range of the `line`-th line (1-indexed), or nil if out of bounds.
+    private func charRange(forLine line: Int, in text: NSString) -> NSRange? {
+        guard line >= 1 else { return nil }
+        var current = 1
+        var location = 0
+        while current < line {
+            let lineRange = text.lineRange(for: NSRange(location: location, length: 0))
+            let next = lineRange.location + lineRange.length
+            if next <= location { return nil }   // reached the end before the target line
+            location = next
+            current += 1
+            if location >= text.length && current < line { return nil }
+        }
+        guard location <= text.length else { return nil }
+        // Return the line's content range without the trailing newline for a tidy selection.
+        let full = text.lineRange(for: NSRange(location: min(location, text.length), length: 0))
+        var contents = full
+        if contents.length > 0 {
+            let end = text.rangeOfCharacter(from: .newlines,
+                                            options: [.backwards],
+                                            range: contents)
+            if end.location != NSNotFound && end.location + end.length == contents.location + contents.length {
+                contents.length -= end.length
+            }
+        }
+        return contents
     }
 
     final class Coordinator: NSObject, NSTextViewDelegate {
