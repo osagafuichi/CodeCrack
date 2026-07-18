@@ -18,6 +18,18 @@ for bundle in .build/release/*.bundle; do
 done
 shopt -u nullglob
 
+# Bundle the CodeCrack Python engine into Resources so the shipped app is
+# self-contained — Analyzer.swift discovers it via Bundle.main.resourceURL and no
+# longer depends on a source checkout on the user's machine. Exclude caches/tests
+# so we ship only the importable package + metadata.
+echo "Bundling engine into $APP/Contents/Resources/engine ..."
+ENGINE_SRC="$(cd .. && pwd)/engine"
+rm -rf "$APP/Contents/Resources/engine"
+mkdir -p "$APP/Contents/Resources/engine"
+cp -R "$ENGINE_SRC/codecrack" "$APP/Contents/Resources/engine/codecrack"
+cp "$ENGINE_SRC/pyproject.toml" "$APP/Contents/Resources/engine/pyproject.toml"
+find "$APP/Contents/Resources/engine" -type d -name '__pycache__' -prune -exec rm -rf {} +
+
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -37,6 +49,13 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 PLIST
 
 echo "Built $APP"
+
+# CI / scripted builds set CODECRACK_SKIP_LAUNCH=1 to assemble the bundle without
+# launching the GUI (there's no display, and it must return promptly).
+if [ -n "${CODECRACK_SKIP_LAUNCH:-}" ]; then
+  echo "CODECRACK_SKIP_LAUNCH set; not launching $APP."
+  exit 0
+fi
 
 # `open` only activates an already-running instance; it won't swap in the new binary.
 # Quit any running copy first so the freshly built one actually launches.

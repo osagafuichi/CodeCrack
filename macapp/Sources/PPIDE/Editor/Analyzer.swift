@@ -6,24 +6,42 @@ enum AnalyzerError: Error {
     case engineNotFound(String)
     /// The `python3` subprocess failed to launch.
     case launchFailed(String)
-    /// The engine exited non-zero; carries stderr for display.
-    case engineFailed(code: Int32, stderr: String)
+    /// The engine exited non-zero; carries stderr + the engine dir that ran.
+    case engineFailed(code: Int32, stderr: String, engineDir: String)
     /// The engine exited 0 but its stdout didn't decode as `AnalysisResult`.
-    case decodeFailed(String)
+    /// Carries the engine dir that ran plus raw stdout/stderr so a version/shape
+    /// skew (e.g. an old engine emitting a different JSON shape) is diagnosable.
+    case decodeFailed(detail: String, engineDir: String, rawStdout: String, stderr: String)
 
     var message: String {
         switch self {
         case .engineNotFound(let path):
-            return "CodeCrack engine not found at \(path).\n"
-                + "Set CODECRACK_ENGINE_DIR to the repo's engine/ directory."
+            return "CodeCrack engine not found (\(path)).\n"
+                + "The bundled engine is missing; reinstall the app, or set "
+                + "CODECRACK_ENGINE_DIR (or the enginePathOverride setting) to a checkout's engine/ directory."
         case .launchFailed(let detail):
             return "Failed to launch python3: \(detail)"
-        case .engineFailed(let code, let stderr):
+        case .engineFailed(let code, let stderr, let engineDir):
             let trimmed = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
-            return "Analysis failed (exit \(code)).\n" + (trimmed.isEmpty ? "No error output." : trimmed)
-        case .decodeFailed(let detail):
-            return "Couldn't read the engine's output: \(detail)"
+            return "Analysis failed (exit \(code)).\n"
+                + "Engine: \(engineDir)\n"
+                + (trimmed.isEmpty ? "No error output." : AnalyzerError.snippet(trimmed))
+        case .decodeFailed(let detail, let engineDir, let rawStdout, let stderr):
+            var parts = [
+                "Couldn't read the engine's output: \(detail)",
+                "Engine: \(engineDir)",
+            ]
+            let out = rawStdout.trimmingCharacters(in: .whitespacesAndNewlines)
+            parts.append(out.isEmpty ? "Engine stdout was empty." : "stdout: \(AnalyzerError.snippet(out))")
+            let err = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !err.isEmpty { parts.append("stderr: \(AnalyzerError.snippet(err))") }
+            return parts.joined(separator: "\n")
         }
+    }
+
+    /// Trim long engine output to a readable snippet for the Issues panel.
+    private static func snippet(_ text: String, limit: Int = 600) -> String {
+        text.count <= limit ? text : String(text.prefix(limit)) + "… (truncated)"
     }
 }
 
@@ -33,38 +51,61 @@ enum AnalyzerError: Error {
 /// engine speaks a single JSON document on stdout rather than a live stream — so we buffer
 /// all of stdout, keep it separate from stderr, and decode once on completion.
 enum Analyzer {
-    /// Last-resort absolute fallback to the engine package's parent directory (`engine/`,
-    /// which contains the importable `codecrack` package). Only used when the env var is
-    /// unset and no `engine/codecrack` can be discovered by walking up from the file — see
-    /// `engineDir(for:)`. Update this if the canonical checkout location changes.
-    static let defaultEngineDir =
-        "/Users/osagafuichi/Library/Application Support/ucode/workspaces/PP-31845c/wire-engine/engine"
+    /// UserDefaults key an (M3) Settings screen will write to point the app at a
+    /// checkout's `engine/` directory. Read here so the override chain is wired up
+    /// today even though the Settings UI lands later.
+    static let enginePathOverrideKey = "enginePathOverride"
+
+    /// A directory is a valid engine root iff it contains `codecrack/__main__.py`
+    /// (the `python -m codecrack` entry point).
+    private static func isEngineDir(_ dir: URL) -> Bool {
+        let marker = dir.appendingPathComponent("codecrack/__main__.py")
+        return FileManager.default.fileExists(atPath: marker.path)
+    }
 
     /// Resolves the engine directory for a file, in precedence order:
-    ///   (a) the `CODECRACK_ENGINE_DIR` environment variable, if set;
-    ///   (b) an `engine/` dir discovered by walking UP from the file's directory and
-    ///       looking for `engine/codecrack/__main__.py` — so Analyze "just works" for any
-    ///       file inside the repo, regardless of which workspace/checkout it lives in;
-    ///   (c) the `defaultEngineDir` constant as a last resort.
-    static func engineDir(for file: URL) -> URL {
-        if let env = ProcessInfo.processInfo.environment["CODECRACK_ENGINE_DIR"], !env.isEmpty {
-            return URL(fileURLWithPath: env, isDirectory: true)
+    ///   (a) an explicit override — the `enginePathOverride` UserDefaults key, else the
+    ///       `CODECRACK_ENGINE_DIR` environment variable — used verbatim if non-empty;
+    ///   (b) the engine bundled inside the app at `Resources/engine` (the shipping path);
+    ///   (c) an `engine/` dir discovered by walking UP from the file's directory (so
+    ///       running from a source checkout "just works" for any file inside the repo);
+    ///   (d) nil — surfaced as `engineNotFound` rather than a hardcoded fallback path.
+    static func engineDir(for file: URL) -> URL? {
+        if let override = overrideEngineDir(), !override.isEmpty {
+            return URL(fileURLWithPath: override, isDirectory: true)
+        }
+        if let bundled = bundledEngineDir(), isEngineDir(bundled) {
+            return bundled
         }
         if let discovered = discoverEngineDir(from: file.deletingLastPathComponent()) {
             return discovered
         }
-        return URL(fileURLWithPath: defaultEngineDir, isDirectory: true)
+        return nil
+    }
+
+    /// The explicit override, preferring the UserDefaults key (Settings) over the env var.
+    private static func overrideEngineDir() -> String? {
+        if let pref = UserDefaults.standard.string(forKey: enginePathOverrideKey),
+           !pref.isEmpty {
+            return pref
+        }
+        let env = ProcessInfo.processInfo.environment["CODECRACK_ENGINE_DIR"]
+        return (env?.isEmpty == false) ? env : nil
+    }
+
+    /// The `engine/` directory shipped inside the `.app` (see `make-app.sh`), or nil when
+    /// running from a `swift build` binary that has no bundled Resources.
+    static func bundledEngineDir() -> URL? {
+        Bundle.main.resourceURL?.appendingPathComponent("engine", isDirectory: true)
     }
 
     /// Walks up from `start`, returning the first ancestor's `engine/` directory that
     /// contains `codecrack/__main__.py`, or nil if none is found before the filesystem root.
     private static func discoverEngineDir(from start: URL) -> URL? {
-        let fm = FileManager.default
         var dir = start.standardizedFileURL
         while true {
             let engine = dir.appendingPathComponent("engine", isDirectory: true)
-            let marker = engine.appendingPathComponent("codecrack/__main__.py")
-            if fm.fileExists(atPath: marker.path) { return engine }
+            if isEngineDir(engine) { return engine }
             let parent = dir.deletingLastPathComponent().standardizedFileURL
             if parent.path == dir.path { return nil }   // reached the filesystem root
             dir = parent
@@ -73,7 +114,10 @@ enum Analyzer {
 
     /// Analyzes `file` and delivers the decoded result (or an error) on the main queue.
     static func analyze(_ file: URL, completion: @escaping (Result<AnalysisResult, AnalyzerError>) -> Void) {
-        let engine = engineDir(for: file)
+        guard let engine = engineDir(for: file) else {
+            DispatchQueue.main.async { completion(.failure(.engineNotFound("no bundled, override, or checkout engine/"))) }
+            return
+        }
 
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: engine.path, isDirectory: &isDir), isDir.boolValue else {
@@ -105,17 +149,19 @@ enum Analyzer {
 
             let result: Result<AnalysisResult, AnalyzerError>
             if proc.terminationStatus != 0 {
-                result = .failure(.engineFailed(code: proc.terminationStatus, stderr: stderr))
+                result = .failure(.engineFailed(
+                    code: proc.terminationStatus, stderr: stderr, engineDir: engine.path))
             } else {
                 do {
                     let decoded = try JSONDecoder().decode(AnalysisResult.self, from: outData)
                     result = .success(decoded)
                 } catch {
                     let raw = String(data: outData, encoding: .utf8) ?? ""
-                    let detail = raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                        ? error.localizedDescription
-                        : "\(error.localizedDescription)"
-                    result = .failure(.decodeFailed(detail))
+                    result = .failure(.decodeFailed(
+                        detail: error.localizedDescription,
+                        engineDir: engine.path,
+                        rawStdout: raw,
+                        stderr: stderr))
                 }
             }
             DispatchQueue.main.async { completion(result) }
