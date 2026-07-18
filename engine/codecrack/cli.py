@@ -30,12 +30,18 @@ def main(argv: list[str] | None = None) -> int:
         "--module", default="target",
         help="import path the generated tests should use (default: target)",
     )
+    an.add_argument(
+        "--no-execute", action="store_true",
+        help="skip the sandbox execute stage (analyze + generate only)",
+    )
 
     args = parser.parse_args(argv)
 
     if args.command == "analyze":
         source = _read(args.path)
-        result = crack(source, module=args.module, filename=args.path)
+        result = crack(
+            source, module=args.module, filename=args.path, execute=not args.no_execute
+        )
         out = (
             render_json(result.findings, result.tests)
             if args.json
