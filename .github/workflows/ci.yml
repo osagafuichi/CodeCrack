@@ -22,10 +22,39 @@ jobs:
         run: pytest engine/tests -q
 
   macos-build:
-    name: macOS app (swift build)
+    name: macOS app (.app bundle + dist artifact)
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build the macOS app
+
+      # Assembles the full bundle: release build + bundled engine + embedded
+      # CPython/pytest (downloaded by scripts/fetch-python-runtime.sh), then the
+      # guarded codesign + notarize steps. CODECRACK_SKIP_LAUNCH keeps it headless.
+      #
+      # Signing/notarization are credential-guarded and skip gracefully when the
+      # secrets are absent (e.g. on forks / PRs). Real signing additionally needs
+      # the Developer ID certificate imported into the runner keychain — out of
+      # scope here; add an import-codesign-certs step alongside these secrets to
+      # enable it.
+      - name: Build the macOS .app bundle
         working-directory: macapp
-        run: swift build
+        env:
+          CODECRACK_SKIP_LAUNCH: "1"
+          CODECRACK_SIGN_IDENTITY: ${{ secrets.CODECRACK_SIGN_IDENTITY }}
+          CODECRACK_APPLE_ID: ${{ secrets.CODECRACK_APPLE_ID }}
+          CODECRACK_TEAM_ID: ${{ secrets.CODECRACK_TEAM_ID }}
+          CODECRACK_APP_PASSWORD: ${{ secrets.CODECRACK_APP_PASSWORD }}
+        run: ./make-app.sh
+
+      # ditto preserves the bundle's symlinks (e.g. python/bin/python3) and
+      # resource forks, which a plain `zip` would mangle.
+      - name: Package PPIDE.app as a zip
+        working-directory: macapp
+        run: ditto -c -k --keepParent PPIDE.app PPIDE.app.zip
+
+      - name: Upload distributable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PPIDE-macos
+          path: macapp/PPIDE.app.zip
+          if-no-files-found: error
