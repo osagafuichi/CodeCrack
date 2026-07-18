@@ -3,7 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @State private var root: FileNode?
     @State private var selection: URL?
-    @State private var document: OpenDocument?
+    @State private var docs = OpenDocuments()
     @State private var status = "Open a file or folder to begin"
 
     // Project search
@@ -56,29 +56,34 @@ struct ContentView: View {
                     Label("Run", systemImage: "play.fill")
                 }
                 .keyboardShortcut("r", modifiers: .command)
-                .disabled(document == nil || isRunning)
+                .disabled(docs.active == nil || isRunning)
                 Button {
                     analyze()
                 } label: {
                     Label("Analyze", systemImage: "ladybug")
                 }
                 .keyboardShortcut("b", modifiers: .command)
-                .disabled(document == nil || isAnalyzing || !isPython)
+                .disabled(docs.active == nil || isAnalyzing || !isPython)
                 Button {
                     save()
                 } label: {
                     Label("Save", systemImage: "square.and.arrow.down")
                 }
                 .keyboardShortcut("s", modifiers: .command)
-                .disabled(document == nil)
+                .disabled(docs.active == nil)
             }
         }
         .background {
-            // Hidden shortcut: ⇧⌘S save as.
-            Button("") { saveAs() }
-                .keyboardShortcut("s", modifiers: [.command, .shift])
-                .disabled(document == nil)
-                .opacity(0)
+            // Hidden shortcuts.
+            Group {
+                Button("") { saveAs() }
+                    .keyboardShortcut("s", modifiers: [.command, .shift])
+                    .disabled(docs.active == nil)
+                Button("") { if let url = docs.activeID { closeTab(url) } }
+                    .keyboardShortcut("w", modifiers: .command)
+                    .disabled(docs.active == nil)
+            }
+            .opacity(0)
         }
         .safeAreaInset(edge: .bottom) { statusBar }
     }
@@ -184,8 +189,15 @@ struct ContentView: View {
     // MARK: - Editor + console
 
     @ViewBuilder private var editor: some View {
-        if let doc = document {
+        if let doc = docs.active {
             VStack(spacing: 0) {
+                TabBar(
+                    documents: docs.documents,
+                    activeID: doc.id,
+                    onSelect: { docs.activate($0); syncSelectionToTree() },
+                    onClose: closeTab
+                )
+                Divider()
                 CodeEditor(text: activeText, language: activeLanguage, revealLine: $revealLine)
                     .id(doc.id)
                 if showIssues {
@@ -214,6 +226,7 @@ struct ContentView: View {
                 }
             }
             .navigationTitle(doc.name)
+            .navigationSubtitle(doc.isDirty ? "Edited" : "")
         } else {
             ContentUnavailableView(
                 "No File Open",
@@ -235,20 +248,19 @@ struct ContentView: View {
             .background(Color(nsColor: .windowBackgroundColor))
     }
 
-    // MARK: - Open document
+    // MARK: - Active document
 
     private var activeLanguage: String? {
-        guard let ext = document?.url.pathExtension, !ext.isEmpty else { return nil }
+        guard let ext = docs.active?.url.pathExtension, !ext.isEmpty else { return nil }
         return LanguageMap.name(forExtension: ext)
     }
 
     private var activeText: Binding<String> {
         Binding(
-            get: { document?.text ?? "" },
+            get: { docs.active?.text ?? "" },
             set: { newValue in
-                guard document?.text != newValue else { return }
-                document?.text = newValue
-                document?.isDirty = true
+                guard docs.active?.text != newValue else { return }
+                docs.updateActive { $0.text = newValue; $0.isDirty = true }
             }
         )
     }
@@ -272,22 +284,38 @@ struct ContentView: View {
         var isDir: ObjCBool = false
         FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir)
         guard !isDir.boolValue else { return }
-        if document?.url == url {
+        if docs.contains(url) {
+            docs.activate(url)
             status = url.path
             return
         }
         let text = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
-        document = OpenDocument(url: url, text: text)
+        docs.open(url, text: text, modificationDate: fileModificationDate(url))
         status = url.path
+    }
+
+    /// Close a tab, warning nothing for now (dirty confirmation is future work); the
+    /// neighbor tab becomes active and the sidebar selection follows it.
+    private func closeTab(_ url: URL) {
+        docs.close(url)
+        syncSelectionToTree()
+    }
+
+    /// Keep the sidebar highlight in sync with the active tab.
+    private func syncSelectionToTree() {
+        if selection != docs.activeID { selection = docs.activeID }
     }
 
     // MARK: - Save / new
 
     private func save() {
-        guard let doc = document else { return }
+        guard let doc = docs.active else { return }
         do {
             try doc.text.write(to: doc.url, atomically: true, encoding: .utf8)
-            document?.isDirty = false
+            docs.updateActive {
+                $0.isDirty = false
+                $0.modificationDate = fileModificationDate(doc.url)
+            }
             status = "Saved \(doc.name)"
         } catch {
             status = "Save failed: \(error.localizedDescription)"
@@ -295,7 +323,7 @@ struct ContentView: View {
     }
 
     private func saveAs() {
-        guard let doc = document,
+        guard let doc = docs.active,
               let url = FilePicker.saveDestination(suggestedName: doc.name) else { return }
         do {
             try doc.text.write(to: url, atomically: true, encoding: .utf8)
@@ -324,10 +352,14 @@ struct ContentView: View {
         if let root { self.root = FileTreeBuilder.build(root.url) }
     }
 
+    private func fileModificationDate(_ url: URL) -> Date? {
+        try? FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] as? Date
+    }
+
     // MARK: - Run
 
     private func run() {
-        guard let doc = document else { return }
+        guard let doc = docs.active else { return }
         save()
         showConsole = true
         guard let command = Runner.command(for: doc.url) else {
@@ -351,13 +383,13 @@ struct ContentView: View {
 
     /// Whether the open file is Python (the engine's only supported language).
     private var isPython: Bool {
-        guard let ext = document?.url.pathExtension.lowercased() else { return false }
+        guard let ext = docs.active?.url.pathExtension.lowercased() else { return false }
         return ext == "py" || ext == "pyw"
     }
 
     /// Save the current file, then run the CodeCrack engine and show its findings.
     private func analyze() {
-        guard let doc = document else { return }
+        guard let doc = docs.active else { return }
         save()  // engine reads from disk, so persist the current text first
         showIssues = true
         analyzeError = nil
@@ -406,11 +438,15 @@ struct ContentView: View {
     private func replaceAll() {
         guard let root, !searchQuery.isEmpty else { return }
         let changed = ProjectSearch.replaceAll(searchQuery, with: replaceText, in: root.url)
-        // Reload the open file if it changed on disk.
-        if let url = document?.url, changed.contains(url),
-           let reloaded = try? String(contentsOf: url, encoding: .utf8) {
-            document?.text = reloaded
-            document?.isDirty = false
+        // Reload any open file that changed on disk.
+        for url in changed where docs.contains(url) {
+            if let reloaded = try? String(contentsOf: url, encoding: .utf8) {
+                docs.update(url) {
+                    $0.text = reloaded
+                    $0.isDirty = false
+                    $0.modificationDate = fileModificationDate(url)
+                }
+            }
         }
         status = "Replaced in \(changed.count) file\(changed.count == 1 ? "" : "s")"
         runSearch()
