@@ -99,6 +99,27 @@ enum Analyzer {
         Bundle.main.resourceURL?.appendingPathComponent("engine", isDirectory: true)
     }
 
+    /// Resolves how to invoke Python, preferring the CPython embedded in the app bundle
+    /// (`Resources/python/bin/python3`) so the app runs without a system python3 — and
+    /// so the execute stage's `sys.executable -m pytest` subprocess uses an interpreter
+    /// that ships pytest. Falls back to `/usr/bin/env python3` (detect-and-use system)
+    /// when the bundled runtime is missing, e.g. running from a plain `swift build` binary.
+    ///
+    /// Returns the executable to launch plus any leading args before the engine args.
+    static func pythonInvocation() -> (executable: URL, leadingArgs: [String]) {
+        if let bundled = bundledPythonInterpreter() {
+            return (bundled, [])
+        }
+        return (URL(fileURLWithPath: "/usr/bin/env"), ["python3"])
+    }
+
+    /// The embedded interpreter shipped inside the `.app`, if present and executable.
+    static func bundledPythonInterpreter() -> URL? {
+        guard let res = Bundle.main.resourceURL else { return nil }
+        let py = res.appendingPathComponent("python/bin/python3")
+        return FileManager.default.isExecutableFile(atPath: py.path) ? py : nil
+    }
+
     /// Walks up from `start`, returning the first ancestor's `engine/` directory that
     /// contains `codecrack/__main__.py`, or nil if none is found before the filesystem root.
     private static func discoverEngineDir(from start: URL) -> URL? {
@@ -125,9 +146,10 @@ enum Analyzer {
             return
         }
 
+        let (interpreter, leadingArgs) = pythonInvocation()
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = ["python3", "-m", "codecrack", "analyze", file.path, "--json"]
+        process.executableURL = interpreter
+        process.arguments = leadingArgs + ["-m", "codecrack", "analyze", file.path, "--json"]
         process.currentDirectoryURL = engine
 
         // GUI apps launch with a minimal PATH; add common tool locations (as Runner does).

@@ -30,6 +30,19 @@ cp -R "$ENGINE_SRC/codecrack" "$APP/Contents/Resources/engine/codecrack"
 cp "$ENGINE_SRC/pyproject.toml" "$APP/Contents/Resources/engine/pyproject.toml"
 find "$APP/Contents/Resources/engine" -type d -name '__pycache__' -prune -exec rm -rf {} +
 
+# Bundle an embedded CPython (with pytest) so the app doesn't need a system python3.
+# The fetch is scripted + cached; see scripts/fetch-python-runtime.sh. The engine's
+# execute stage runs `python -m pytest` via sys.executable, so this interpreter MUST
+# carry pytest — the fetch script installs it.
+echo "Preparing embedded Python runtime ..."
+"$(cd .. && pwd)/scripts/fetch-python-runtime.sh"
+PY_RUNTIME="$(cd .. && pwd)/build/python-runtime/python"
+echo "Bundling Python runtime into $APP/Contents/Resources/python ..."
+rm -rf "$APP/Contents/Resources/python"
+cp -R "$PY_RUNTIME" "$APP/Contents/Resources/python"
+# Prune bytecode caches so the bundle is smaller and reproducible.
+find "$APP/Contents/Resources/python" -type d -name '__pycache__' -prune -exec rm -rf {} +
+
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
