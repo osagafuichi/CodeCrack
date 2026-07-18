@@ -17,6 +17,10 @@ struct CodeEditor: NSViewRepresentable {
     /// Used by the Issues panel's click-to-jump.
     var revealLine: Binding<Int?> = .constant(nil)
 
+    /// Persisted caret/selection for this document, so switching tabs and coming back
+    /// restores where the cursor was. Written on selection change, restored on build.
+    var selection: Binding<NSRange?> = .constant(nil)
+
     // Editor preferences (persisted in Preferences ⌘,). Changing any of these re-applies
     // to the live editor via `updateNSView`.
     @AppStorage(SettingsKeys.fontSize) private var fontSize = SettingsDefaults.fontSize
@@ -85,6 +89,12 @@ struct CodeEditor: NSViewRepresentable {
         // Content + language (CodeAttributedString highlights on assignment).
         textStorage.language = language
         textView.string = text
+
+        // Restore the persisted caret/selection for this document, if it still fits.
+        if let saved = selection.wrappedValue,
+           saved.location + saved.length <= (textView.string as NSString).length {
+            textView.setSelectedRange(saved)
+        }
 
         let scrollView = NSScrollView()
         scrollView.borderType = .noBorder
@@ -197,6 +207,16 @@ struct CodeEditor: NSViewRepresentable {
         func textDidChange(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
             parent.text = textView.string
+        }
+
+        func textViewDidChangeSelection(_ notification: Notification) {
+            guard let textView = notification.object as? NSTextView else { return }
+            let range = textView.selectedRange()
+            // Defer so we never mutate SwiftUI state during an update pass (e.g. when a
+            // programmatic reveal-to-line changes the selection inside `updateNSView`).
+            DispatchQueue.main.async { [weak self] in
+                self?.parent.selection.wrappedValue = range
+            }
         }
 
         /// Honor the tabs-vs-spaces preference: when "spaces" is chosen, Tab inserts the

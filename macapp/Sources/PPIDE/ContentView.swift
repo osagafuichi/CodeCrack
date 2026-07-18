@@ -228,7 +228,8 @@ struct ContentView: View {
                     onClose: closeTab
                 )
                 Divider()
-                CodeEditor(text: activeText, language: activeLanguage, revealLine: $revealLine)
+                CodeEditor(text: activeText, language: activeLanguage,
+                           revealLine: $revealLine, selection: activeSelection)
                     .id(doc.id)
                 if showIssues {
                     Divider()
@@ -289,6 +290,13 @@ struct ContentView: View {
     private var activeLanguage: String? {
         guard let ext = docs.active?.url.pathExtension, !ext.isEmpty else { return nil }
         return LanguageMap.name(forExtension: ext)
+    }
+
+    private var activeSelection: Binding<NSRange?> {
+        Binding(
+            get: { docs.active?.selectedRange },
+            set: { newValue in docs.updateActive { $0.selectedRange = newValue } }
+        )
     }
 
     private var activeText: Binding<String> {
