@@ -1,4 +1,13 @@
 import SwiftUI
+import AppKit
+
+/// A pending "file changed on disk" prompt for an open document with unsaved edits.
+struct ExternalChange: Identifiable {
+    let url: URL
+    let diskText: String
+    let diskDate: Date?
+    var id: URL { url }
+}
 
 struct ContentView: View {
     @State private var root: FileNode?
@@ -25,6 +34,9 @@ struct ContentView: View {
     @State private var showIssues = false
     @State private var analyzeError: String?
     @State private var revealLine: Int?
+
+    // External-change handling: a pending prompt when an open, dirty file was modified on disk.
+    @State private var externalChange: ExternalChange?
 
     var body: some View {
         NavigationSplitView {
@@ -86,6 +98,23 @@ struct ContentView: View {
             .opacity(0)
         }
         .safeAreaInset(edge: .bottom) { statusBar }
+        // Re-check open files whenever the app regains focus — that's when external edits
+        // (from another editor, a formatter, git, etc.) have typically just happened.
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            checkExternalChanges()
+        }
+        .alert(
+            "File changed on disk",
+            isPresented: Binding(get: { externalChange != nil },
+                                 set: { if !$0 { externalChange = nil } }),
+            presenting: externalChange
+        ) { change in
+            Button("Reload", role: .destructive) { resolveExternalChange(change, reload: true) }
+            Button("Keep My Version", role: .cancel) { resolveExternalChange(change, reload: false) }
+        } message: { change in
+            Text("“\(change.url.lastPathComponent)” was modified by another program. "
+                 + "Reload it and discard your unsaved changes, or keep your version?")
+        }
     }
 
     // MARK: - Sidebar
@@ -354,6 +383,54 @@ struct ContentView: View {
 
     private func fileModificationDate(_ url: URL) -> Date? {
         try? FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] as? Date
+    }
+
+    // MARK: - External-change detection
+
+    /// Compare each open document's on-disk mtime against what we last saw. Clean documents
+    /// are reloaded silently; a dirty document whose disk content actually differs raises a
+    /// prompt (one at a time — the rest are handled once it's resolved).
+    private func checkExternalChanges() {
+        guard externalChange == nil else { return }   // don't stack prompts
+        for doc in docs.documents {
+            guard let known = doc.modificationDate,
+                  let diskDate = fileModificationDate(doc.url),
+                  diskDate > known else { continue }
+            guard let diskText = try? String(contentsOf: doc.url, encoding: .utf8) else { continue }
+            if diskText == doc.text {
+                // Same content (e.g. our own atomic save touched the mtime); just catch up.
+                docs.update(doc.url) { $0.modificationDate = diskDate }
+                continue
+            }
+            if doc.isDirty {
+                externalChange = ExternalChange(url: doc.url, diskText: diskText, diskDate: diskDate)
+                return
+            } else {
+                docs.update(doc.url) {
+                    $0.text = diskText
+                    $0.isDirty = false
+                    $0.modificationDate = diskDate
+                }
+                status = "Reloaded \(doc.name) — changed on disk"
+            }
+        }
+    }
+
+    /// Resolve a prompted external change: `reload` adopts the disk version and discards local
+    /// edits; otherwise we keep the user's version but record the new mtime so it stops asking.
+    private func resolveExternalChange(_ change: ExternalChange, reload: Bool) {
+        docs.update(change.url) {
+            if reload {
+                $0.text = change.diskText
+                $0.isDirty = false
+            }
+            $0.modificationDate = change.diskDate
+        }
+        status = reload ? "Reloaded \(change.url.lastPathComponent)"
+                        : "Kept your version of \(change.url.lastPathComponent)"
+        externalChange = nil
+        // Handle any other files that also changed while this prompt was up.
+        DispatchQueue.main.async { checkExternalChanges() }
     }
 
     // MARK: - Run
