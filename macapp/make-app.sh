@@ -1,5 +1,26 @@
 #!/bin/bash
 # Build PPIDE and wrap it into a double-clickable macOS .app bundle.
+#
+# Code signing + notarization (all OPTIONAL — steps no-op unless the credentials
+# below are set, so this script works unchanged on a machine without them):
+#
+#   CODECRACK_SIGN_IDENTITY   Developer ID Application identity to codesign with,
+#                             e.g. "Developer ID Application: Jane Dev (TEAMID1234)".
+#                             When set: the bundle is deep-signed with the hardened
+#                             runtime + PPIDE.entitlements. When unset: signing is
+#                             skipped (unsigned bundle; fine for local dev).
+#
+#   Notarization additionally requires ALL THREE of:
+#   CODECRACK_APPLE_ID        Apple ID email used for notarytool submission.
+#   CODECRACK_TEAM_ID         Apple Developer Team ID (10-char), e.g. TEAMID1234.
+#   CODECRACK_APP_PASSWORD    App-specific password for that Apple ID (NOT the real
+#                             account password; create one at appleid.apple.com).
+#   When all three are set (and signing ran): the app is submitted to Apple's
+#   notary service and the ticket is stapled. When any is missing: notarization is
+#   skipped with a printed notice.
+#
+#   CODECRACK_SKIP_LAUNCH     Set to assemble the bundle without opening the GUI
+#                             (used by CI and headless builds).
 set -e
 cd "$(dirname "$0")"
 
@@ -62,6 +83,51 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 PLIST
 
 echo "Built $APP"
+
+# --- Code signing (Developer ID Application + hardened runtime) --------------
+# Guarded: only runs when CODECRACK_SIGN_IDENTITY is set. Signs inner Mach-O
+# (the embedded interpreter + its dylibs/.so) first, then the outer bundle, all
+# with the hardened runtime and our entitlements.
+ENTITLEMENTS="PPIDE.entitlements"
+if [ -n "${CODECRACK_SIGN_IDENTITY:-}" ]; then
+  echo "Code signing $APP with '$CODECRACK_SIGN_IDENTITY' (hardened runtime) ..."
+  # Sign every Mach-O binary inside the bundled runtime before the app itself.
+  # (--deep is unreliable for embedded interpreters; sign inside-out explicitly.)
+  find "$APP/Contents/Resources/python" \
+    \( -type f \( -name '*.dylib' -o -name '*.so' \) \) -o \
+    \( -type f -perm -u+x ! -name '*.py' \) 2>/dev/null | while read -r bin; do
+      codesign --force --options runtime --timestamp \
+        --sign "$CODECRACK_SIGN_IDENTITY" "$bin" || true
+  done
+  codesign --force --options runtime --timestamp \
+    --entitlements "$ENTITLEMENTS" \
+    --sign "$CODECRACK_SIGN_IDENTITY" "$APP"
+  echo "Verifying signature ..."
+  codesign --verify --deep --strict --verbose=2 "$APP"
+
+  # --- Notarization (notarytool submit + staple) ----------------------------
+  # Guarded: only runs when all three notarization creds are present.
+  if [ -n "${CODECRACK_APPLE_ID:-}" ] && [ -n "${CODECRACK_TEAM_ID:-}" ] \
+     && [ -n "${CODECRACK_APP_PASSWORD:-}" ]; then
+    echo "Notarizing $APP ..."
+    NOTARIZE_ZIP="PPIDE-notarize.zip"
+    ditto -c -k --keepParent "$APP" "$NOTARIZE_ZIP"
+    xcrun notarytool submit "$NOTARIZE_ZIP" \
+      --apple-id "$CODECRACK_APPLE_ID" \
+      --team-id "$CODECRACK_TEAM_ID" \
+      --password "$CODECRACK_APP_PASSWORD" \
+      --wait
+    echo "Stapling notarization ticket ..."
+    xcrun stapler staple "$APP"
+    rm -f "$NOTARIZE_ZIP"
+  else
+    echo "Notarization skipped: set CODECRACK_APPLE_ID, CODECRACK_TEAM_ID, and " \
+         "CODECRACK_APP_PASSWORD to notarize + staple."
+  fi
+else
+  echo "Code signing skipped: set CODECRACK_SIGN_IDENTITY to sign (and, with the" \
+       "notarization creds, notarize) the bundle."
+fi
 
 # CI / scripted builds set CODECRACK_SKIP_LAUNCH=1 to assemble the bundle without
 # launching the GUI (there's no display, and it must return promptly).

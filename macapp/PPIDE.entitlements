@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- Hardened-runtime entitlements for PPIDE.
+       The app bundles its own CPython (Resources/python) and runs it plus pytest
+       as subprocesses. Under the hardened runtime this needs two relaxations: -->
+
+  <!-- The embedded interpreter loads its own dylibs and C-extension .so files that
+       are NOT signed by our Developer ID. Library validation would reject them, so
+       we disable it. Without this the bundled python fails to start once notarized. -->
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+
+  <!-- Some CPython C extensions (ctypes trampolines, etc.) allocate executable
+       memory that isn't backed by a signed file. Allow it so the interpreter and
+       generated-test execution run cleanly under the hardened runtime. -->
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+</dict>
+</plist>
