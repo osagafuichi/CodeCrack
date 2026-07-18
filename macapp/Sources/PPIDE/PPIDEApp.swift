@@ -15,6 +15,11 @@ struct PPIDEApp: App {
             ContentView()
                 .frame(minWidth: 900, minHeight: 600)
         }
+
+        // Preferences window (⌘,). SwiftUI adds the standard menu item automatically.
+        Settings {
+            SettingsView()
+        }
     }
 }
 

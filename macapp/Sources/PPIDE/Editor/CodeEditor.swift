@@ -17,7 +17,17 @@ struct CodeEditor: NSViewRepresentable {
     /// Used by the Issues panel's click-to-jump.
     var revealLine: Binding<Int?> = .constant(nil)
 
-    static let font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+    // Editor preferences (persisted in Preferences ⌘,). Changing any of these re-applies
+    // to the live editor via `updateNSView`.
+    @AppStorage(SettingsKeys.fontSize) private var fontSize = SettingsDefaults.fontSize
+    @AppStorage(SettingsKeys.editorTheme) private var editorThemeRaw = SettingsDefaults.editorTheme
+    @AppStorage(SettingsKeys.indentUsesSpaces) var indentUsesSpaces = SettingsDefaults.indentUsesSpaces
+    @AppStorage(SettingsKeys.indentWidth) var indentWidth = SettingsDefaults.indentWidth
+
+    /// Monospaced editor font at the user's chosen size.
+    var font: NSFont { NSFont.monospacedSystemFont(ofSize: CGFloat(fontSize), weight: .regular) }
+
+    private var theme: EditorTheme { EditorTheme(rawValue: editorThemeRaw) ?? .system }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -34,12 +44,15 @@ struct CodeEditor: NSViewRepresentable {
         context.coordinator.textStorage = textStorage
         context.coordinator.textView = textView
 
-        // Theme + font. Pick a theme matching the current appearance.
-        let dark = textView.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-        let themeName = dark ? "atom-one-dark" : "atom-one-light"
+        // Theme + font. Resolve the user's chosen theme against the current appearance.
+        let systemDark = textView.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        let dark = theme.isDark(systemIsDark: systemDark)
+        let themeName = theme.highlightrName(systemIsDark: systemDark)
         textStorage.highlightr.setTheme(to: themeName)
-        textStorage.highlightr.theme.setCodeFont(Self.font)
+        textStorage.highlightr.theme.setCodeFont(font)
         context.coordinator.themeIsDark = dark
+        context.coordinator.appliedThemeName = themeName
+        context.coordinator.appliedFontSize = fontSize
 
         let bg = textStorage.highlightr.theme.themeBackgroundColor ?? .textBackgroundColor
         textView.backgroundColor = bg
@@ -113,6 +126,23 @@ struct CodeEditor: NSViewRepresentable {
             textStorage.language = language
         }
 
+        // Re-apply theme / font size when Preferences change.
+        let systemDark = textView.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        let dark = theme.isDark(systemIsDark: systemDark)
+        let themeName = theme.highlightrName(systemIsDark: systemDark)
+        if themeName != context.coordinator.appliedThemeName || fontSize != context.coordinator.appliedFontSize {
+            textStorage.highlightr.setTheme(to: themeName)
+            textStorage.highlightr.theme.setCodeFont(font)
+            textView.backgroundColor = textStorage.highlightr.theme.themeBackgroundColor ?? .textBackgroundColor
+            textView.insertionPointColor = dark ? .white : .black
+            context.coordinator.themeIsDark = dark
+            context.coordinator.appliedThemeName = themeName
+            context.coordinator.appliedFontSize = fontSize
+            // Force a full re-highlight so existing text picks up the new theme/font.
+            let lang = textStorage.language
+            textStorage.language = lang
+        }
+
         // Click-to-jump: scroll to and select the requested 1-indexed line, then clear
         // the binding so tapping the same finding again re-fires.
         if let target = revealLine.wrappedValue {
@@ -158,12 +188,26 @@ struct CodeEditor: NSViewRepresentable {
         weak var textView: NSTextView?
         weak var textStorage: CodeAttributedString?
         var themeIsDark = false
+        /// Last-applied theme/font, so `updateNSView` only re-themes when they actually change.
+        var appliedThemeName = ""
+        var appliedFontSize: Double = 0
 
         init(_ parent: CodeEditor) { self.parent = parent }
 
         func textDidChange(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
             parent.text = textView.string
+        }
+
+        /// Honor the tabs-vs-spaces preference: when "spaces" is chosen, Tab inserts the
+        /// configured number of spaces instead of a tab character.
+        func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            if commandSelector == #selector(NSResponder.insertTab(_:)), parent.indentUsesSpaces {
+                let spaces = String(repeating: " ", count: max(1, parent.indentWidth))
+                textView.insertText(spaces, replacementRange: textView.selectedRange())
+                return true
+            }
+            return false
         }
     }
 }

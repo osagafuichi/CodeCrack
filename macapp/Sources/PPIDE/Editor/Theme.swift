@@ -16,3 +16,53 @@ extension Color {
             : NSColor(red: 250 / 255, green: 250 / 255, blue: 250 / 255, alpha: 1) // #fafafa
     })
 }
+
+/// User-selectable editor theme. `.system` follows the OS appearance (the original locked
+/// behavior); the rest are fixed Highlightr themes the user can pick in Preferences. Each
+/// case knows the Highlightr stylesheet name to load and whether it renders dark, so
+/// `CodeEditor` can set the caret color and matching background.
+enum EditorTheme: String, CaseIterable, Identifiable {
+    case system
+    case light
+    case dark
+    case solarizedDark
+    case monokai
+    case github
+
+    var id: String { rawValue }
+
+    /// Menu label shown in Preferences.
+    var label: String {
+        switch self {
+        case .system: return "System (follow appearance)"
+        case .light: return "Atom One Light"
+        case .dark: return "Atom One Dark"
+        case .solarizedDark: return "Solarized Dark"
+        case .monokai: return "Monokai"
+        case .github: return "GitHub"
+        }
+    }
+
+    /// The Highlightr stylesheet name for this theme, given the current OS appearance
+    /// (only consulted by `.system`).
+    func highlightrName(systemIsDark: Bool) -> String {
+        switch self {
+        case .system: return systemIsDark ? "atom-one-dark" : "atom-one-light"
+        case .light: return "atom-one-light"
+        case .dark: return "atom-one-dark"
+        case .solarizedDark: return "solarized-dark"
+        case .monokai: return "monokai-sublime"
+        case .github: return "github"
+        }
+    }
+
+    /// Whether this theme renders on a dark background (drives caret color), given the OS
+    /// appearance for `.system`.
+    func isDark(systemIsDark: Bool) -> Bool {
+        switch self {
+        case .system: return systemIsDark
+        case .light, .github: return false
+        case .dark, .solarizedDark, .monokai: return true
+        }
+    }
+}
