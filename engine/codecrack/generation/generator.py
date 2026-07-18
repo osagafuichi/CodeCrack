@@ -37,31 +37,51 @@ def _raises_test(f: Finding, exc: str, trigger_value: str, module: str) -> Gener
 
 
 def _mutable_default_test(f: Finding, module: str) -> GeneratedTest:
+    """Trigger the shared-mutable-default bug with a repr-snapshot oracle.
+
+    The naive ``first == second`` check is defeated by aliasing: when the buggy
+    function mutates *and returns* its default, ``first`` and ``second`` are the
+    same object, so they always compare equal. Instead we snapshot ``repr(first)``
+    and assert an independent second call did not mutate it — which it will have,
+    because ``first`` *is* the leaked default. Failing this assertion proves the
+    bug (``expects="assertion"``).
+    """
     fn = f.evidence.get("function")
-    name = f"test_{fn}_no_shared_default_state_{f.id.lower()}"
+    required = f.evidence.get("required_params", [])
+    call = f"{fn}({', '.join(f'{p}=1' for p in required)})"
+    name = f"test_{fn}_mutable_default_leak_{f.id.lower()}"
     src = (
         f"from {module} import {fn}\n\n\n"
         f"def {name}():\n"
         f"    # {f.rationale}\n"
-        f"    # A mutable default must not carry state between independent calls.\n"
-        f"    first = {fn}()\n"
-        f"    second = {fn}()\n"
-        f"    assert first == second, "
-        f"'default-argument state leaked between calls'\n"
+        f"    # Snapshot the first result, then confirm an independent second call\n"
+        f"    # did not mutate it (survives aliasing: a leaked default IS this object).\n"
+        f"    first = {call}\n"
+        f"    before = repr(first)\n"
+        f"    {call}\n"
+        f"    after = repr(first)\n"
+        f"    assert before == after, "
+        f"'mutable default argument leaked state between independent calls'\n"
     )
     return GeneratedTest(finding_id=f.id, test_name=name, source=src, expects="assertion")
 
 
 def _regression_scaffold(f: Finding, module: str) -> GeneratedTest:
+    """A clearly-labelled skip for weaknesses with no auto-derivable trigger.
+
+    The skip reason starts with ``needs input`` so the UI can group these as
+    "needs input" rather than treating them as failures.
+    """
     fn = f.evidence.get("function") or "target"
     name = f"test_{fn}_{f.kind.replace('-', '_')}_{f.id.lower()}"
+    reason = f"needs input: no trigger could be auto-derived for {f.kind}"
     src = (
         f"import pytest\n\n\n"
-        f"@pytest.mark.skip(reason='TODO: supply a trigger input for this weakness')\n"
+        f"@pytest.mark.skip(reason={reason!r})\n"
         f"def {name}():\n"
         f"    # {f.rationale}\n"
-        f"    # CodeCrack flagged this but could not auto-derive a trigger.\n"
-        f"    # Fill in a call that exercises the risky path, then assert on it.\n"
+        f"    # CodeCrack flagged this but could not auto-derive a trigger input.\n"
+        f"    # Supply a call that exercises the risky path, then assert on it.\n"
         f"    raise AssertionError('unimplemented regression test')\n"
     )
     return GeneratedTest(finding_id=f.id, test_name=name, source=src, expects="regression")

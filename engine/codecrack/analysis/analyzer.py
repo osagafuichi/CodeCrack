@@ -73,7 +73,27 @@ class _Analyzer(ast.NodeVisitor):
     visit_AsyncFunctionDef = visit_FunctionDef  # type: ignore[assignment]
 
     def _check_mutable_defaults(self, node) -> None:
-        for default in node.args.defaults + node.args.kw_defaults:
+        a = node.args
+        positional = a.posonlyargs + a.args
+        # Python binds ``defaults`` to the LAST N positional params; ``kw_defaults``
+        # aligns 1:1 with ``kwonlyargs`` (None where there is no default).
+        defaulted: dict[str, ast.expr] = {}
+        if a.defaults:
+            for arg, default in zip(positional[-len(a.defaults):], a.defaults):
+                defaulted[arg.arg] = default
+        for arg, default in zip(a.kwonlyargs, a.kw_defaults):
+            if default is not None:
+                defaulted[arg.arg] = default
+
+        # Params generation MUST supply to reach the risky default (everything
+        # without its own default, minus the mutable one which we leave defaulted).
+        required = [
+            arg.arg
+            for arg in (positional + a.kwonlyargs)
+            if arg.arg not in defaulted and arg.arg != "self"
+        ]
+
+        for arg_name, default in defaulted.items():
             if isinstance(default, (ast.List, ast.Dict, ast.Set)):
                 self._func_stack.append(node)
                 self._add(
@@ -82,6 +102,7 @@ class _Analyzer(ast.NodeVisitor):
                     "Mutable default argument is shared across calls and leaks state "
                     "between invocations.",
                     "high",
+                    extra={"param": arg_name, "required_params": required},
                 )
                 self._func_stack.pop()
 
