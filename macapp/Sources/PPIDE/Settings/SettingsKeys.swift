@@ -13,6 +13,10 @@ enum SettingsKeys {
     static let indentWidth = "indentWidth"
     static let enginePathOverride = "enginePathOverride"
     static let claudeAPIKey = "claudeAPIKey"
+
+    /// Recent-files list (File ▸ Open Recent): array of file paths, newest first. See
+    /// `RecentFilesStore`.
+    static let recentDocumentPaths = "recentDocumentPaths"
 }
 
 /// Default values for preferences that need a sensible non-empty fallback. `@AppStorage`

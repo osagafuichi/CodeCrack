@@ -10,6 +10,7 @@ struct ExternalChange: Identifiable {
 }
 
 struct ContentView: View {
+    @EnvironmentObject private var recentFiles: RecentFilesStore
     @State private var root: FileNode?
     @State private var selection: URL?
     @State private var docs = OpenDocuments()
@@ -103,6 +104,10 @@ struct ContentView: View {
         // (from another editor, a formatter, git, etc.) have typically just happened.
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             checkExternalChanges()
+        }
+        // File ▸ Open Recent selections arrive here (the menu lives in the App scene).
+        .onReceive(NotificationCenter.default.publisher(for: .openRecentFile)) { note in
+            if let url = note.object as? URL { openRecent(url) }
         }
         .alert(
             "File changed on disk",
@@ -331,11 +336,28 @@ struct ContentView: View {
         if docs.contains(url) {
             docs.activate(url)
             status = url.path
+            recentFiles.record(url)
             return
         }
         let text = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
         docs.open(url, text: text, modificationDate: fileModificationDate(url))
         status = url.path
+        recentFiles.record(url)
+    }
+
+    /// Open a file chosen from the Open Recent menu. If it has since been deleted or moved,
+    /// prune it from the list and report rather than opening an empty tab.
+    private func openRecent(_ url: URL) {
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            recentFiles.remove(url)
+            status = "“\(url.lastPathComponent)” is no longer available"
+            return
+        }
+        if root == nil {
+            root = FileTreeBuilder.build(url.deletingLastPathComponent())
+        }
+        openFile(url)
+        selection = url
     }
 
     /// Close a tab, warning nothing for now (dirty confirmation is future work); the
