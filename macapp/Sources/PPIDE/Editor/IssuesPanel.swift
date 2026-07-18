@@ -6,9 +6,12 @@ import SwiftUI
 struct IssuesPanel: View {
     let findings: [Finding]
     let tests: [GeneratedTest]
+    let summary: Summary?
     let isAnalyzing: Bool
     let errorMessage: String?
     var onSelect: (Int) -> Void
+    /// Jump the editor to the finding a test targets (by finding id).
+    var onSelectFinding: (String) -> Void
     var onClear: () -> Void
     var onClose: () -> Void
 
@@ -133,36 +136,139 @@ struct IssuesPanel: View {
         if tests.isEmpty {
             emptyState("No tests generated.")
         } else {
-            List(tests) { test in
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 8) {
-                        Text(test.test_name)
-                            .font(.system(.callout, design: .monospaced)).bold()
-                        expectsBadge(test.expects)
-                        Spacer(minLength: 0)
-                    }
-                    Text(test.source)
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(.primary)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(8)
-                        .background(Color(nsColor: .windowBackgroundColor), in: RoundedRectangle(cornerRadius: 5))
+            VStack(spacing: 0) {
+                testsHeadline
+                Divider()
+                List(tests) { test in
+                    TestRow(test: test, onJump: { onSelectFinding(test.finding_id) })
                 }
-                .padding(.vertical, 2)
+                .listStyle(.inset)
+                .scrollContentBackground(.hidden)
             }
-            .listStyle(.inset)
-            .scrollContentBackground(.hidden)
         }
     }
 
-    private func expectsBadge(_ expects: String) -> some View {
-        Text(expects)
-            .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(Color.secondary.opacity(0.15), in: Capsule())
+    /// The load-bearing headline: how many generated tests actually *reproduced* a real
+    /// failure (the engine's `summary.reproduced`), plus how many ran.
+    @ViewBuilder private var testsHeadline: some View {
+        if let summary {
+            let n = summary.reproduced
+            HStack(spacing: 8) {
+                Image(systemName: n > 0 ? "checkmark.seal.fill" : "seal")
+                    .foregroundStyle(n > 0 ? .green : .secondary)
+                Text("\(n) test\(n == 1 ? "" : "s") reproduce a real failure")
+                    .font(.callout).bold()
+                Text("· executed \(summary.executed)/\(summary.tests)")
+                    .font(.caption).foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(nsColor: .windowBackgroundColor))
+        }
+    }
+
+    /// One test: name, verified-outcome badge, a "bug proven" / "needs input" tag, and an
+    /// expandable disclosure holding the traceback (`detail`), stdout, and the test source.
+    private struct TestRow: View {
+        let test: GeneratedTest
+        var onJump: () -> Void
+
+        @State private var expanded = false
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    Button(action: onJump) {
+                        Text(test.test_name)
+                            .font(.system(.callout, design: .monospaced)).bold()
+                            .foregroundStyle(.primary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Jump to \(test.finding_id)")
+                    outcomeBadge
+                    statusTag
+                    Spacer(minLength: 0)
+                    if test.duration > 0 {
+                        Text(String(format: "%.2fs", test.duration))
+                            .font(.system(.caption2, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.12)) { expanded.toggle() }
+                    } label: {
+                        Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.plain).foregroundStyle(.secondary)
+                    .help(expanded ? "Hide details" : "Show details")
+                }
+                if expanded { details }
+            }
+            .padding(.vertical, 3)
+        }
+
+        @ViewBuilder private var details: some View {
+            if !test.detail.isEmpty {
+                labeledBlock(test.outcome == "skipped" ? "Skip reason" : "Traceback",
+                             test.detail, mono: true)
+            }
+            if !test.stdout.isEmpty {
+                labeledBlock("stdout", test.stdout, mono: true)
+            }
+            labeledBlock("Test source", test.source, mono: true)
+        }
+
+        private func labeledBlock(_ title: String, _ body: String, mono: Bool) -> some View {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title.uppercased())
+                    .font(.system(size: 9, weight: .bold)).foregroundStyle(.secondary)
+                Text(body)
+                    .font(.system(mono ? .caption : .callout, design: mono ? .monospaced : .default))
+                    .foregroundStyle(.primary)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(8)
+                    .background(Color(nsColor: .windowBackgroundColor), in: RoundedRectangle(cornerRadius: 5))
+            }
+        }
+
+        /// Verified pytest outcome — passed / failed / error / skipped, or "not executed"
+        /// when the engine didn't run it (outcome == nil).
+        private var outcomeBadge: some View {
+            let (label, color): (String, Color)
+            switch test.outcome {
+            case "passed": (label, color) = ("passed", .green)
+            case "failed": (label, color) = ("failed", .red)
+            case "error": (label, color) = ("error", .orange)
+            case "skipped": (label, color) = ("skipped", .gray)
+            default: (label, color) = ("not executed", .gray)
+            }
+            return Text(label)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 6).padding(.vertical, 2)
+                .background(color, in: Capsule())
+        }
+
+        /// The meaning of the outcome for the user. Uses the engine's `reproduced` flag
+        /// directly (never re-derived): proven bug vs. needs-input vs. inconclusive.
+        @ViewBuilder private var statusTag: some View {
+            if test.reproduced {
+                tag("BUG PROVEN", .green)
+            } else if test.needsInput {
+                tag("needs input", .secondary)
+            }
+        }
+
+        private func tag(_ text: String, _ color: Color) -> some View {
+            Text(text)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(color)
+                .padding(.horizontal, 6).padding(.vertical, 2)
+                .background(color.opacity(0.15), in: Capsule())
+        }
     }
 
     private func emptyState(_ text: String) -> some View {

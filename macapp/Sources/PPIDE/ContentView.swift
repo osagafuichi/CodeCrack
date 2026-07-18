@@ -30,6 +30,7 @@ struct ContentView: View {
     // CodeCrack analysis
     @State private var findings: [Finding] = []
     @State private var generatedTests: [GeneratedTest] = []
+    @State private var analysisSummary: Summary?
     @State private var isAnalyzing = false
     @State private var showIssues = false
     @State private var analyzeError: String?
@@ -234,13 +235,19 @@ struct ContentView: View {
                     IssuesPanel(
                         findings: findings,
                         tests: generatedTests,
+                        summary: analysisSummary,
                         isAnalyzing: isAnalyzing,
                         errorMessage: analyzeError,
                         onSelect: { line in revealLine = line },
-                        onClear: { findings = []; generatedTests = []; analyzeError = nil },
+                        onSelectFinding: { findingID in
+                            if let line = findings.first(where: { $0.id == findingID })?.line {
+                                revealLine = line
+                            }
+                        },
+                        onClear: { findings = []; generatedTests = []; analysisSummary = nil; analyzeError = nil },
                         onClose: { showIssues = false }
                     )
-                    .frame(height: 220)
+                    .frame(height: 260)
                 }
                 if showConsole {
                     Divider()
@@ -478,12 +485,14 @@ struct ContentView: View {
             case .success(let analysis):
                 findings = analysis.findings
                 generatedTests = analysis.tests
+                analysisSummary = analysis.summary
                 analyzeError = nil
                 let n = analysis.summary.findings
                 status = "Analysis found \(n) issue\(n == 1 ? "" : "s") in \(doc.name)"
             case .failure(let error):
                 findings = []
                 generatedTests = []
+                analysisSummary = nil
                 analyzeError = error.message
                 status = "Analysis failed"
             }
