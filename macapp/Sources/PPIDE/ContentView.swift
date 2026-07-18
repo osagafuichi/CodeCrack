@@ -40,6 +40,9 @@ struct ContentView: View {
     // External-change handling: a pending prompt when an open, dirty file was modified on disk.
     @State private var externalChange: ExternalChange?
 
+    // Session restore: reopen last session's tabs once, on first appearance.
+    @State private var didRestoreSession = false
+
     var body: some View {
         NavigationSplitView {
             sidebar
@@ -100,6 +103,11 @@ struct ContentView: View {
             .opacity(0)
         }
         .safeAreaInset(edge: .bottom) { statusBar }
+        // Restore the saved window frame and persist frame changes (no reliance on a quit hook).
+        .background(WindowAccessor())
+        // Reopen last session's tabs once, then keep the saved tab set in sync as tabs change.
+        .onAppear { restoreSession() }
+        .onChange(of: tabSessionSignature) { _, _ in persistTabSession() }
         // Re-check open files whenever the app regains focus — that's when external edits
         // (from another editor, a formatter, git, etc.) have typically just happened.
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
@@ -370,6 +378,44 @@ struct ContentView: View {
     /// Keep the sidebar highlight in sync with the active tab.
     private func syncSelectionToTree() {
         if selection != docs.activeID { selection = docs.activeID }
+    }
+
+    // MARK: - Session restore
+
+    /// A lightweight fingerprint of the tab set + active tab. Persistence keys off this so
+    /// edits to a document's text (which also mutate `docs`) don't trigger a session write.
+    private var tabSessionSignature: String {
+        docs.documents.map(\.url.path).joined(separator: "\n") + "\u{1}" + (docs.activeID?.path ?? "")
+    }
+
+    /// Reopen the previous session's tabs into M3's `OpenDocuments`, re-activate the saved tab,
+    /// and point the sidebar at the active file's folder. Files that were deleted/moved since
+    /// last quit are skipped. No saved session (first run) leaves default behavior untouched.
+    private func restoreSession() {
+        guard !didRestoreSession else { return }
+        didRestoreSession = true
+        guard let state = SessionStore.loadTabs() else { return }
+
+        for url in state.openURLs where FileManager.default.fileExists(atPath: url.path) {
+            // Inline open (not `openFile`) so restore doesn't reshuffle the recent-files list.
+            let text = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+            docs.open(url, text: text, modificationDate: fileModificationDate(url))
+        }
+        if let active = state.activeURL, docs.contains(active) {
+            docs.activate(active)
+        }
+        if let activeURL = docs.activeID {
+            root = FileTreeBuilder.build(activeURL.deletingLastPathComponent())
+            selection = activeURL
+            status = activeURL.path
+        }
+    }
+
+    /// Save the current tab set + active tab. Runs whenever the tab set changes, so the last
+    /// state is always on disk by quit-time without a terminate hook.
+    private func persistTabSession() {
+        guard didRestoreSession else { return }   // don't clobber saved state before restore runs
+        SessionStore.saveTabs(openURLs: docs.documents.map(\.url), activeURL: docs.activeID)
     }
 
     // MARK: - Save / new

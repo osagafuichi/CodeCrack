@@ -17,6 +17,15 @@ enum SettingsKeys {
     /// Recent-files list (File ▸ Open Recent): array of file paths, newest first. See
     /// `RecentFilesStore`.
     static let recentDocumentPaths = "recentDocumentPaths"
+
+    // Window/session-state restore (see `SessionStore`). These capture the last session so a
+    // relaunch reopens the same tabs, re-activates the same tab, and restores the window frame.
+    /// Open document paths (the tab set), in tab order.
+    static let sessionOpenDocumentPaths = "sessionOpenDocumentPaths"
+    /// Path of the active document within the tab set.
+    static let sessionActiveDocumentPath = "sessionActiveDocumentPath"
+    /// The main window frame, as `NSStringFromRect`.
+    static let sessionWindowFrame = "sessionWindowFrame"
 }
 
 /// Default values for preferences that need a sensible non-empty fallback. `@AppStorage`
