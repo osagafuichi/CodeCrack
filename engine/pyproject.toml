@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "codecrack"
+version = "0.1.0"
+description = "Analyze code and generate tests that expose runtime and logical bugs (Python adapter)."
+requires-python = ">=3.10"
+license = { text = "Proprietary" }
+# The core engine is stdlib-only; pytest is only needed to *run* generated tests
+# (and the engine's own suite), which the execute stage shells out to.
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+codecrack = "codecrack.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["codecrack*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

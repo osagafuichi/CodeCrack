@@ -6,3 +6,6 @@ __pycache__/
 node_modules/
 .build/
 .scratch/
+*.egg-info/
+build/
+dist/
