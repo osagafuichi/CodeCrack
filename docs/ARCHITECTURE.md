@@ -85,9 +85,11 @@ See `core-design-brief.md` for the adapter **contract** every adapter must satis
 - **AI layer** — Claude API (latest models). AI **assists, it does not decide**:
   every suggested test/fix is executed in the sandbox and proven before it's
   trusted. Keep non-deterministic LLM steps outside the reproducible path.
-- **Frontend** — native macOS app in SwiftUI (`macapp/`). Currently an M1 shell:
-  file-tree sidebar + editor + save. Engine wiring (run analysis, show findings) is
-  the next milestone.
+- **Frontend** — native macOS app in SwiftUI (`macapp/`). As of v1.0 the engine is
+  fully wired in: file-tree sidebar + editor, an **Analyze** action, an **Issues**
+  panel, and a **Tests** tab that surfaces which generated tests reproduce a real
+  failure (pass/fail badges, click-to-line). The app is self-contained — it bundles the
+  engine and an embedded Python runtime (with pytest), so it needs no system `python3`.
 
 ## Design principles
 
@@ -101,4 +103,6 @@ See `core-design-brief.md` for the adapter **contract** every adapter must satis
 
 - Where the sandbox runs: locally vs server-side.
 - Deterministic vs LLM-driven balance in test generation.
-- How the macOS app invokes the engine: bundled Python vs a packaged binary.
+- ~~How the macOS app invokes the engine: bundled Python vs a packaged binary.~~
+  **Resolved (v1.0):** the app bundles an embedded Python runtime and runs the engine
+  as a local process, so it needs no system `python3`.
