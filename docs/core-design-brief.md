@@ -90,6 +90,9 @@ This is the interface between the shared core and a language. Prove it end-to-en
 ### Invariants worker sessions must honor
 
 - **Never run user/generated code in-process** — always through the sandbox.
+- The subprocess sandbox is **platform-branched** (POSIX vs Windows); the Windows
+  port (design spec Phase 0) makes the execute stage cross-platform, so the shared
+  engine is **not zero-change** — a corrected premise from the original brief.
 - **Determinism** — generated tests must reproduce (seed RNG) in every language.
 - **AI never decides** — a suggested test must actually fail; a suggested fix must
   pass; keep LLM steps out of the reproducible verification path.
