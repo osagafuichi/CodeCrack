@@ -35,3 +35,27 @@ def test_infinite_loop_killed_within_timeout():
     assert elapsed < 30, f"executor hung for {elapsed:.1f}s"
     assert t.outcome == "error"
     assert "timed out" in t.detail
+
+
+from codecrack.execution.runner import IS_WINDOWS, _scrubbed_env  # noqa: E402
+
+
+def test_scrubbed_env_always_sets_determinism_and_results(tmp_path):
+    env = _scrubbed_env(str(tmp_path / "r.json"))
+    assert env["PYTHONHASHSEED"] == "0"
+    assert env["PYTHONDONTWRITEBYTECODE"] == "1"
+    assert env["CODECRACK_RESULTS"].endswith("r.json")
+    assert env.get("PATH")
+
+
+@pytest.mark.skipif(not IS_WINDOWS, reason="Windows-only env allowlist")
+def test_scrubbed_env_windows_allowlist(monkeypatch, tmp_path):
+    monkeypatch.setenv("PATHEXT", ".COM;.EXE;.BAT")
+    monkeypatch.setenv("SYSTEMDRIVE", "C:")
+    monkeypatch.setenv("TEMP", str(tmp_path))
+    monkeypatch.setenv("NUMBER_OF_PROCESSORS", "8")
+    env = _scrubbed_env(str(tmp_path / "r.json"))
+    assert env["PATHEXT"] == ".COM;.EXE;.BAT"
+    assert env["SYSTEMDRIVE"] == "C:"
+    assert env["TEMP"] == str(tmp_path)
+    assert env["NUMBER_OF_PROCESSORS"] == "8"

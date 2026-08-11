@@ -136,14 +136,33 @@ def _scrubbed_env(results_path: str) -> dict[str, str]:
     """A minimal environment: enough to import pytest/python, nothing else.
 
     We deliberately drop the caller's environment (no secrets, no network
-    config) but preserve what a stdlib interpreter + pytest need to start.
+    config) but preserve what a stdlib interpreter + pytest need to start. The
+    allowlist is platform-shaped: POSIX and Windows require different keys.
     """
     src = os.environ
     env: dict[str, str] = {}
-    for key in ("PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "SYSTEMROOT"):
-        if key in src:
-            env[key] = src[key]
-    env.setdefault("PATH", "/usr/bin:/bin")
+    if IS_WINDOWS:
+        for key in (
+            "PATH",
+            "SYSTEMROOT",
+            "SYSTEMDRIVE",
+            "TEMP",
+            "TMP",
+            "PATHEXT",
+            "NUMBER_OF_PROCESSORS",
+            "LANG",
+            "LC_ALL",
+        ):
+            if key in src:
+                env[key] = src[key]
+        env.setdefault(
+            "PATH", os.path.join(src.get("SYSTEMROOT", r"C:\Windows"), "System32")
+        )
+    else:
+        for key in ("PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "SYSTEMROOT"):
+            if key in src:
+                env[key] = src[key]
+        env.setdefault("PATH", "/usr/bin:/bin")
     env["PYTHONHASHSEED"] = "0"  # determinism
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     env["CODECRACK_RESULTS"] = results_path
