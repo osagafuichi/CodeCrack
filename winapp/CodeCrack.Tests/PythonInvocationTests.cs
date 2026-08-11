@@ -3,6 +3,9 @@ using Xunit;
 
 namespace CodeCrack.Tests;
 
+// Serialized with EngineEndToEndTests (shared collection) so the two don't race
+// on BaseDirectory\python — this test transiently creates/deletes a fake python.exe.
+[Collection("PythonEnv")]
 public class PythonInvocationTests
 {
     private static string BundledExe =>
