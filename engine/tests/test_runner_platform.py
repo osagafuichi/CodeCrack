@@ -22,3 +22,16 @@ def test_execute_starts_subprocess_on_this_platform():
     execute_tests([passing, failing], module_source="", module="target")
     assert passing.outcome == "passed"
     assert failing.outcome == "failed"
+
+
+def test_infinite_loop_killed_within_timeout():
+    module = "def loop():\n    while True:\n        pass\n"
+    t = _mk("test_loop", "from target import loop\nloop()", expects="raises")
+    start = time.monotonic()
+    execute_tests(
+        [t], module_source=module, module="target", config=SandboxConfig(wall_timeout=3)
+    )
+    elapsed = time.monotonic() - start
+    assert elapsed < 30, f"executor hung for {elapsed:.1f}s"
+    assert t.outcome == "error"
+    assert "timed out" in t.detail

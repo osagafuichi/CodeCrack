@@ -110,7 +110,8 @@ def _preexec(config: SandboxConfig):
 
     def apply() -> None:
         # New session/process group so a timeout can kill the whole tree.
-        os.setsid()
+        if hasattr(os, "setsid"):
+            os.setsid()
         if resource is None:
             return
         if config.cpu_seconds is not None:
@@ -227,7 +228,22 @@ def execute_tests(
 
 
 def _kill_group(proc: subprocess.Popen) -> None:
-    """Kill the child's whole process group so infinite loops can't linger."""
+    """Kill the child's whole process tree so infinite loops can't linger."""
+    if IS_WINDOWS:
+        # No os.killpg on Windows; taskkill /T terminates the whole tree by PID.
+        try:
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
+        except OSError:
+            try:
+                proc.kill()
+            except OSError:
+                pass
+        return
     try:
         os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
     except (ProcessLookupError, PermissionError):
