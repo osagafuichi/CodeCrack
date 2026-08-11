@@ -1,0 +1,110 @@
+{
+  "findings": [
+    {
+      "id": "F001",
+      "kind": "zero-division",
+      "target": "divide",
+      "location": [
+        2,
+        11
+      ],
+      "rationale": "Division by parameter 'b' raises ZeroDivisionError when it is 0.",
+      "severity": "high",
+      "evidence": {
+        "function": "divide",
+        "params": [
+          "a",
+          "b"
+        ],
+        "param": "b"
+      }
+    },
+    {
+      "id": "F002",
+      "kind": "index-error",
+      "target": "first",
+      "location": [
+        6,
+        11
+      ],
+      "rationale": "Indexing parameter 'xs' can raise IndexError/KeyError for empty or missing input.",
+      "severity": "medium",
+      "evidence": {
+        "function": "first",
+        "params": [
+          "xs"
+        ],
+        "param": "xs"
+      }
+    },
+    {
+      "id": "F003",
+      "kind": "mutable-default-arg",
+      "target": "accumulate",
+      "location": [
+        9,
+        25
+      ],
+      "rationale": "Mutable default argument is shared across calls and leaks state between invocations.",
+      "severity": "high",
+      "evidence": {
+        "function": "accumulate",
+        "params": [
+          "item",
+          "acc"
+        ],
+        "param": "acc",
+        "required_params": [
+          "item"
+        ]
+      }
+    }
+  ],
+  "tests": [
+    {
+      "finding_id": "F001",
+      "test_name": "test_divide_zero_division_f001",
+      "source": "import pytest\nfrom target import divide\n\n\ndef test_divide_zero_division_f001():\n    # Division by parameter 'b' raises ZeroDivisionError when it is 0.\n    with pytest.raises(ZeroDivisionError):\n        divide(a=1, b=0)\n",
+      "expects": "raises",
+      "outcome": "passed",
+      "detail": "",
+      "stdout": "",
+      "duration": 0.0,
+      "reproduced": true
+    },
+    {
+      "finding_id": "F002",
+      "test_name": "test_first_index_error_f002",
+      "source": "import pytest\nfrom target import first\n\n\ndef test_first_index_error_f002():\n    # Indexing parameter 'xs' can raise IndexError/KeyError for empty or missing input.\n    with pytest.raises((IndexError, KeyError)):\n        first(xs=[])\n",
+      "expects": "raises",
+      "outcome": "passed",
+      "detail": "",
+      "stdout": "",
+      "duration": 0.0,
+      "reproduced": true
+    },
+    {
+      "finding_id": "F003",
+      "test_name": "test_accumulate_mutable_default_leak_f003",
+      "source": "from target import accumulate\n\n\ndef test_accumulate_mutable_default_leak_f003():\n    # Mutable default argument is shared across calls and leaks state between invocations.\n    # Snapshot the first result, then confirm an independent second call\n    # did not mutate it (survives aliasing: a leaked default IS this object).\n    first = accumulate(item=1)\n    before = repr(first)\n    accumulate(item=1)\n    after = repr(first)\n    assert before == after, 'mutable default argument leaked state between independent calls'\n",
+      "expects": "assertion",
+      "outcome": "failed",
+      "detail": "",
+      "stdout": "",
+      "duration": 0.0,
+      "reproduced": true
+    }
+  ],
+  "summary": {
+    "findings": 3,
+    "tests": 3,
+    "executed": 3,
+    "reproduced": 3,
+    "by_outcome": {
+      "passed": 2,
+      "failed": 1,
+      "error": 0,
+      "skipped": 0
+    }
+  }
+}
