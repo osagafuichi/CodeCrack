@@ -69,4 +69,21 @@ public partial class CodeEditorControl : UserControl, IEditorHost
 
     public void ApplyTheme(EditorThemeSpec theme)
         => ThemeApplier.Apply(Editor, _textMate, _registryOptions, theme);
+
+    /// <summary>Swaps the active tab: replaces the editor Document (fresh per-tab undo history),
+    /// then restores caret/selection deferred so AvalonEdit has laid out the new document first.</summary>
+    public void SwapDocument(CodeCrack.App.Core.Editor.OpenDocument doc)
+    {
+        _suppressTextChanged = true;
+        Editor.Document = new ICSharpCode.AvalonEdit.Document.TextDocument(doc.Text);
+        _suppressTextChanged = false;
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            var (caret, start, length) =
+                CodeCrack.App.Core.Editor.TabManagement.RestoreCursor(Editor.Document.TextLength, doc);
+            Editor.CaretOffset = caret;
+            Editor.Select(start, length);
+            Editor.TextArea.Caret.BringCaretToView();
+        }), System.Windows.Threading.DispatcherPriority.Loaded);
+    }
 }
