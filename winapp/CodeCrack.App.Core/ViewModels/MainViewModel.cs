@@ -66,7 +66,7 @@ public sealed class MainViewModel : ObservableObject
     public bool ShowIssues { get; private set; }
 
     public bool CanSave => Active is not null;
-    public bool CanRun => Active is not null;
+    public bool CanRun => Active is not null && !IsRunning;
     public bool CanAnalyze => Active is not null && !IsAnalyzing && IsPython;
 
     private bool IsPython
@@ -128,5 +128,65 @@ public sealed class MainViewModel : ObservableObject
             Issues.ErrorMessage = outcome.Error?.Message;
             _status.Set("Analysis failed");
         }
+    }
+
+    // ---- Run / console (Task 3.5) ----
+
+    public ConsoleViewModel Console { get; } = new();
+    public bool ShowConsole { get; private set; }
+
+    private bool _isRunning;
+    public bool IsRunning
+    {
+        get => _isRunning;
+        private set { if (Set(ref _isRunning, value)) Raise(nameof(CanRun)); }
+    }
+
+    private IRunSession? _session;
+
+    /// Injection seam for tests; defaults to the real process Runner.
+    public Func<RunCommand, Action<string>, Action<int>, IRunSession?> RunnerFactory { get; set; }
+        = Runner.Start;
+
+    public string Run()
+    {
+        if (Active is null) return "";
+        Save(); // run reads from disk
+        ShowConsole = true;
+
+        var cmd = RunCommandTable.For(Active.Path);
+        if (cmd is null)
+        {
+            var ext = Path.GetExtension(Active.Path).TrimStart('.');
+            Console.Clear();
+            Console.Append($"Don't know how to run .{ext} files yet.\n");
+            var noRun = $"No run configuration for .{ext}";
+            _status.Set(noRun);
+            return noRun;
+        }
+
+        _session?.Stop();
+        Console.Clear();
+        Console.Append($"$ {cmd.Display}\n\n");
+        IsRunning = true;
+        Console.IsRunning = true;
+
+        _session = RunnerFactory(cmd,
+            text => Console.Append(text),
+            code =>
+            {
+                Console.Append($"\n[exited with code {code}]\n");
+                IsRunning = false;
+                Console.IsRunning = false;
+                _session = null;
+            });
+
+        return cmd.Display;
+    }
+
+    public void SendInput(string text)
+    {
+        _session?.Send(text);
+        Console.Append(text + "\n");
     }
 }

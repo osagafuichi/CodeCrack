@@ -188,6 +188,65 @@ public sealed class ViewModelTests
         Assert.Equal(99, host.RevealedLine);
     }
 
+    [Fact]
+    public void Run_unknown_extension_prints_help_and_sets_status()
+    {
+        var (vm, _, status, _, _) = Build();
+        vm.Active = Doc(@"C:\proj\notes.md", "hi\n");
+
+        var result = vm.Run();
+
+        Assert.Equal("No run configuration for .md", status.Text);
+        Assert.Equal("No run configuration for .md", result);
+        Assert.Contains("Don't know how to run .md files yet.", vm.Console.Display);
+        Assert.True(vm.ShowConsole);
+        Assert.False(vm.IsRunning);
+    }
+
+    [Fact]
+    public void Run_runnable_file_echoes_command_and_streams_via_factory()
+    {
+        var (vm, _, _, _, _) = Build();
+        vm.Active = Doc(@"C:\proj\bug.py", "print(1)\n");
+
+        Action<string>? captured = null;
+        Action<int>? finish = null;
+        vm.RunnerFactory = (cmd, onOut, onFin) =>
+        {
+            captured = onOut; finish = onFin;
+            return new StubSession();
+        };
+
+        vm.Run();
+        Assert.StartsWith("$ ", vm.Console.Display);
+        Assert.True(vm.IsRunning);
+
+        captured!("line one\n");
+        finish!(0);
+
+        Assert.Contains("line one", vm.Console.Display);
+        Assert.Contains("[exited with code 0]", vm.Console.Display);
+        Assert.False(vm.IsRunning);
+    }
+
+    [Fact]
+    public void Console_display_falls_back_when_empty()
+    {
+        var c = new ConsoleViewModel();
+        Assert.Equal("No output yet.", c.Display);
+        Assert.False(c.CanSubmitInput);
+        c.IsRunning = true;
+        Assert.True(c.CanSubmitInput);
+        c.Append("x");
+        Assert.Equal("x", c.Display);
+    }
+
+    private sealed class StubSession : IRunSession
+    {
+        public void Send(string text) { }
+        public void Stop() { }
+    }
+
     private sealed class StubSettings : IAppSettings
     {
         public string EnginePathOverride { get; set; } = "";
