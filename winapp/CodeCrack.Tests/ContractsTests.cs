@@ -43,7 +43,7 @@ public class ContractsTests
         host.Selection = (1, 2);
         host.RevealLine(10);
         host.SetLanguageByPath(@"C:\a\b.py");
-        host.ApplyTheme(new EditorThemeSpec("dark_plus", true, "#1e1e1e", "#d4d4d4", "#ffffff", "#264f78"));
+        host.ApplyTheme(new EditorThemeSpec("dark", "Dark", "DarkPlus", true, "#1e1e1e", "#d4d4d4", "#ffffff", "#264f78", "#858585"));
         host.FocusEditor();
 
         Assert.Equal("print(1)", host.Text);

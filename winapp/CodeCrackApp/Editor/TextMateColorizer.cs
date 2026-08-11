@@ -71,7 +71,7 @@ internal sealed class TextMateColorizer : ICSharpCode.AvalonEdit.Rendering.Docum
         if (_grammar is null) return;
         string text = CurrentContext.Document.GetText(line);
         _lineEndStates.TryGetValue(line.LineNumber - 1, out var prevState);
-        var result = _grammar.TokenizeLine(text, prevState, null);
+        var result = _grammar.TokenizeLine(text, prevState, TimeSpan.Zero);
         _lineEndStates[line.LineNumber] = result.RuleStack;
 
         foreach (IToken token in result.Tokens)
