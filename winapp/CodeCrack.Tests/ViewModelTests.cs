@@ -110,6 +110,33 @@ public sealed class ViewModelTests
         Assert.False(vm.Active!.IsDirty);
     }
 
+    [Fact]
+    public void Issues_are_sorted_high_medium_low_stable_within_severity()
+    {
+        var vm = new IssuesViewModel();
+        vm.SetFindings(new[]
+        {
+            new Finding("a", "k", "t", new[] { 5 }, "r", "low"),
+            new Finding("b", "k", "t", new[] { 6 }, "r", "high"),
+            new Finding("c", "k", "t", new[] { 7 }, "r", "medium"),
+            new Finding("d", "k", "t", new[] { 8 }, "r", "high"),
+        });
+
+        Assert.Equal(new[] { "b", "d", "c", "a" }, vm.Findings.Select(f => f.Id).ToArray());
+    }
+
+    [Fact]
+    public void Activating_a_finding_reveals_its_line_through_the_editor_host()
+    {
+        var (vm, _, _, _, host) = Build();
+        var finding = new Finding("f9", "k", "t", new[] { 42 }, "r", "high");
+        vm.Issues.SetFindings(new[] { finding });
+
+        vm.Issues.Activate(vm.Issues.Findings[0]);
+
+        Assert.Equal(42, host.RevealedLine);
+    }
+
     private sealed class StubSettings : IAppSettings
     {
         public string EnginePathOverride { get; set; } = "";
