@@ -86,4 +86,12 @@ public partial class CodeEditorControl : UserControl, IEditorHost
             Editor.TextArea.Caret.BringCaretToView();
         }), System.Windows.Threading.DispatcherPriority.Loaded);
     }
+
+    /// <summary>Click-to-line handler wired from IssuesPanel/TestsPanel item selection.
+    /// Always reveals (no guard on the previous line) so re-selecting the same issue re-scrolls.</summary>
+    public void RevealLineRequested(int line1Indexed)
+    {
+        int target = CodeCrack.App.Core.Editor.RevealTarget.Resolve(Editor.Document.LineCount, line1Indexed);
+        RevealLine(target);
+    }
 }
