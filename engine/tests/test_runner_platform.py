@@ -59,3 +59,15 @@ def test_scrubbed_env_windows_allowlist(monkeypatch, tmp_path):
     assert env["SYSTEMDRIVE"] == "C:"
     assert env["TEMP"] == str(tmp_path)
     assert env["NUMBER_OF_PROCESSORS"] == "8"
+
+
+import glob  # noqa: E402
+import os  # noqa: E402
+import tempfile  # noqa: E402
+
+
+def test_no_scratch_dirs_leak_after_run():
+    t = _mk("test_ok", "assert True", expects="assertion")
+    execute_tests([t], module_source="", module="target")
+    leftovers = glob.glob(os.path.join(tempfile.gettempdir(), "codecrack_exec_*"))
+    assert leftovers == [], f"leaked scratch dirs: {leftovers}"

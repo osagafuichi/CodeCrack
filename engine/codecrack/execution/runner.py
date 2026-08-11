@@ -189,7 +189,9 @@ def execute_tests(
     if not tests:
         return tests
 
-    with tempfile.TemporaryDirectory(prefix="codecrack_exec_") as scratch:
+    with tempfile.TemporaryDirectory(
+        prefix="codecrack_exec_", ignore_cleanup_errors=True
+    ) as scratch:
         # Code under test, importable as ``{module}`` from the scratch CWD.
         with open(os.path.join(scratch, f"{module}.py"), "w", encoding="utf-8") as fh:
             fh.write(module_source)
@@ -240,6 +242,8 @@ def execute_tests(
             timed_out = True
             _kill_group(proc)
             captured, _ = proc.communicate()
+        finally:
+            proc.wait()
 
         _attach_results(tests, by_nodeid, results_path, timed_out, config, captured)
 
