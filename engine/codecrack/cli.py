@@ -9,6 +9,12 @@ from codecrack.pipeline import crack
 from codecrack.report import render_json, render_text
 
 
+def _configure_stdout() -> None:
+    """Force UTF-8 output so non-ASCII report glyphs survive OEM/CJK consoles."""
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace")
+
+
 def _read(path: str) -> str:
     if path == "-":
         return sys.stdin.read()
@@ -17,6 +23,7 @@ def _read(path: str) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    _configure_stdout()
     parser = argparse.ArgumentParser(
         prog="codecrack",
         description="Analyze Python code and generate tests that expose its bugs.",
