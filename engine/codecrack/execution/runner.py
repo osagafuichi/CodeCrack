@@ -29,6 +29,8 @@ from dataclasses import dataclass
 
 from codecrack.core.models import GeneratedTest
 
+IS_WINDOWS = os.name == "nt"
+
 try:  # POSIX only; rlimits are best-effort and skipped where unsupported.
     import resource
 except ImportError:  # pragma: no cover - non-POSIX
@@ -196,15 +198,22 @@ def execute_tests(
         ]
 
         timed_out = False
-        proc = subprocess.Popen(
-            cmd,
+        popen_kwargs = dict(
             cwd=scratch,
             env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
-            preexec_fn=_preexec(config),
         )
+        if IS_WINDOWS:
+            # Windows has no POSIX process groups / preexec_fn. A new process
+            # group + no console window lets us kill the whole tree on timeout.
+            popen_kwargs["creationflags"] = (
+                subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
+            )
+        else:
+            popen_kwargs["preexec_fn"] = _preexec(config)
+        proc = subprocess.Popen(cmd, **popen_kwargs)
         try:
             captured, _ = proc.communicate(timeout=config.wall_timeout)
         except subprocess.TimeoutExpired:
