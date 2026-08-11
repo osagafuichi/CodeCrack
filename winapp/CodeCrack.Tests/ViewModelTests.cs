@@ -137,6 +137,57 @@ public sealed class ViewModelTests
         Assert.Equal(42, host.RevealedLine);
     }
 
+    private static GeneratedTest T(string findingId, string name, bool reproduced,
+        string? outcome, string expects) =>
+        new(findingId, name, "def test(): assert False", expects, outcome,
+            "traceback", "captured stdout", 0.12, reproduced);
+
+    [Fact]
+    public void Headline_and_reproduced_count_come_from_summary()
+    {
+        var vm = new TestsViewModel();
+        vm.SetResult(
+            new[] { T("f1", "test_a", true, "failed", "regression") },
+            new Summary(2, 3, 3, 1, new OutcomeCounts(0, 1, 0, 0)));
+
+        Assert.Equal(1, vm.ReproducedCount);
+        // Mac-verbatim string: the verb is not conjugated for the singular.
+        Assert.Equal("1 test reproduce a real failure", vm.Headline);
+    }
+
+    [Fact]
+    public void Headline_pluralizes_when_multiple_reproduced()
+    {
+        var vm = new TestsViewModel();
+        vm.SetResult(System.Array.Empty<GeneratedTest>(),
+            new Summary(0, 5, 5, 2, new OutcomeCounts(0, 2, 0, 0)));
+        Assert.Equal("2 tests reproduce a real failure", vm.Headline);
+    }
+
+    [Fact]
+    public void BugProven_binds_to_reproduced_and_NeedsInput_to_outcome_or_expects()
+    {
+        var proven = T("f1", "t1", reproduced: true, outcome: "failed", expects: "regression");
+        var skipped = T("f2", "t2", reproduced: false, outcome: "skipped", expects: "raises");
+        var normal = T("f3", "t3", reproduced: false, outcome: "passed", expects: "raises");
+
+        Assert.True(proven.Reproduced);
+        Assert.True(skipped.NeedsInput);   // outcome == "skipped"
+        Assert.False(normal.NeedsInput);
+    }
+
+    [Fact]
+    public void Jumping_from_a_test_reveals_the_matching_findings_line()
+    {
+        var (vm, _, _, _, host) = Build();
+        vm.Issues.SetFindings(new[] { new Finding("f7", "k", "t", new[] { 99 }, "r", "high") });
+        vm.Tests.SetResult(new[] { T("f7", "test_x", false, "passed", "raises") }, null);
+
+        vm.Tests.JumpToFinding(vm.Tests.Tests[0]);
+
+        Assert.Equal(99, host.RevealedLine);
+    }
+
     private sealed class StubSettings : IAppSettings
     {
         public string EnginePathOverride { get; set; } = "";
