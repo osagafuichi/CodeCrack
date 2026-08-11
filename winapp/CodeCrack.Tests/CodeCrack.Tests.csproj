@@ -15,4 +15,10 @@
   <ItemGroup>
     <None Include="Fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Single source of truth: the engine-generated golden (engine Task 0.1),
+         linked into test output so the contract test decodes the CURRENT engine shape. -->
+    <Content Include="..\..\engine\tests\golden\analysis_result.json"
+             Link="Fixtures\analysis_result.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
