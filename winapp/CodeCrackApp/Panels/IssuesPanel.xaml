@@ -13,12 +13,14 @@
     </UserControl.Resources>
     <DockPanel>
         <TextBlock DockPanel.Dock="Top" Margin="12,6" FontWeight="Bold"
+                   AutomationProperties.AutomationId="IssuesHeader"
                    Text="{Binding Findings.Count, StringFormat='Issues ({0})'}" />
         <TextBlock DockPanel.Dock="Top" Margin="12,6" Foreground="Red"
                    TextWrapping="Wrap" FontFamily="Consolas"
                    Text="{Binding ErrorMessage}"
                    Visibility="{Binding ErrorMessage, Converter={StaticResource NullToCollapsed}}" />
         <ListBox ItemsSource="{Binding Findings}" BorderThickness="0"
+                 AutomationProperties.AutomationId="IssuesList"
                  HorizontalContentAlignment="Stretch"
                  MouseDoubleClick="OnRowActivated" KeyDown="OnRowKeyDown">
             <ListBox.ItemTemplate>

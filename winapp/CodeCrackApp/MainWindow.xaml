@@ -46,13 +46,15 @@
                 <MenuItem Header="_Preferences…" Command="{x:Static local:Commands.Preferences}"
                           InputGestureText="Ctrl+,"/>
             </MenuItem>
-            <MenuItem Header="_Run">
+            <MenuItem Header="_Run" AutomationProperties.AutomationId="MenuRun">
                 <MenuItem Header="_Run"       Command="{x:Static local:Commands.Run}"/>
-                <MenuItem Header="_Analyze"   Command="{x:Static local:Commands.Analyze}"/>
+                <MenuItem Header="_Analyze"   Command="{x:Static local:Commands.Analyze}"
+                          AutomationProperties.AutomationId="MenuAnalyze"/>
                 <MenuItem Header="Cancel A_nalyze" Command="{x:Static local:Commands.CancelAnalyze}"/>
             </MenuItem>
         </Menu>
         <TextBlock x:Name="StatusText" DockPanel.Dock="Bottom" Padding="6,3"
+                   AutomationProperties.AutomationId="StatusBar"
                    TextTrimming="CharacterEllipsis" Text="Open a file or folder to begin"/>
         <Grid>
             <Grid.ColumnDefinitions>

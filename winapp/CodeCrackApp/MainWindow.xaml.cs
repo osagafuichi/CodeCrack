@@ -76,6 +76,13 @@ public partial class MainWindow : Window
 
     // ---- Open / Recent files --------------------------------------------
 
+    /// Open a file passed on the command line (CodeCrack.exe &lt;path&gt;) or via "Open with".
+    public void OpenInitialFile(string path)
+    {
+        if (_services is null || !File.Exists(path)) return;
+        OpenFromUser(Path.GetFullPath(path));
+    }
+
     /// User-initiated open (dialog, tree, or recents): opens the file AND records it in RecentFiles.
     private void OpenFromUser(string path)
     {

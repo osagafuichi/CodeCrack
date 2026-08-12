@@ -15,6 +15,7 @@
                    Text="{Binding Headline}"
                    Visibility="{Binding HasSummary, Converter={StaticResource BoolToVisible}}" />
         <ListBox ItemsSource="{Binding Tests}" BorderThickness="0"
+                 AutomationProperties.AutomationId="TestsList"
                  HorizontalContentAlignment="Stretch"
                  MouseDoubleClick="OnJump" KeyDown="OnJumpKey">
             <ListBox.ItemTemplate>

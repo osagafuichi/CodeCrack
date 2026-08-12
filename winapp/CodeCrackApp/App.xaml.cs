@@ -31,6 +31,13 @@ public partial class App : Application
         var window = new MainWindow();
         window.Bind(services);
         window.Show();
+
+        // "CodeCrack.exe <path>" (command line / "Open with") opens that file after the
+        // window is up. Skips option-like args; unreadable paths are ignored.
+        foreach (var arg in e.Args)
+        {
+            if (!arg.StartsWith('-') && File.Exists(arg)) { window.OpenInitialFile(arg); break; }
+        }
     }
 
     private static void Report(Exception? ex, string source)
