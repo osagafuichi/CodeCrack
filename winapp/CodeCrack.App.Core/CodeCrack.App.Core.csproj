@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <!-- Required by [LibraryImport] source-generated P/Invoke (JobObjectProcessConfiner).
+         Enables unsafe blocks in generated marshalling code; no hand-written unsafe here. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+</Project>

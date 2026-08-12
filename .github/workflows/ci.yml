@@ -7,10 +7,12 @@ on:
 jobs:
   engine-tests:
     name: Engine (pytest)
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.10", "3.12"]
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.10", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -20,6 +22,47 @@ jobs:
         run: python -m pip install --upgrade pip && pip install -e "./engine[dev]"
       - name: Run test suite
         run: pytest engine/tests -q
+      - name: Golden JSON drift check
+        shell: bash
+        run: |
+          python -m codecrack analyze engine/tests/fixtures/multi_bug.py --json \
+            | python engine/tests/golden/normalize.py > engine/tests/golden/analysis_result.json
+          git diff --exit-code -- engine/tests/golden/analysis_result.json
+
+  csharp-tests:
+    # Windows-only: CodeCrack ships to Windows, and the Core's path/status/name
+    # behavior is intentionally Windows-shaped (Path.GetFileName on "C:\..\x.py",
+    # cmd-based run table). Running these on Linux produced false failures for a
+    # target the product never runs on; the cross-OS signal lives in engine-tests.
+    name: csharp-tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET (pinned by winapp/global.json)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Restore
+        run: dotnet restore winapp/CodeCrack.Tests/CodeCrack.Tests.csproj
+      - name: Build Core + Tests
+        run: dotnet build winapp/CodeCrack.Tests/CodeCrack.Tests.csproj -c Release --no-restore
+      - name: Test with coverage
+        run: >
+          dotnet test winapp/CodeCrack.Tests/CodeCrack.Tests.csproj
+          -c Release --no-build
+          --collect:"XPlat Code Coverage"
+          --logger "trx;LogFileName=csharp-results.trx"
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: csharp-coverage-${{ matrix.os }}
+          path: '**/TestResults/**/coverage.cobertura.xml'
+          if-no-files-found: warn
 
   macos-build:
     name: macOS app (.app bundle + dist artifact)
@@ -58,3 +101,95 @@ jobs:
           name: PPIDE-macos
           path: macapp/PPIDE.app.zip
           if-no-files-found: error
+
+  windows-build:
+    name: Windows app (self-contained + dist artifact)
+    # Never publish a distributable from a red pipeline: the Windows artifact is
+    # only cut when its own tests (C# app + Python engine) are green.
+    needs: [csharp-tests, engine-tests]
+    runs-on: windows-latest
+    # `secrets` context is not allowed in step `if:`, so promote the check to a
+    # job-level env var (secrets ARE allowed in env) and gate on that below.
+    env:
+      HAS_AZURE_SIGNING: ${{ secrets.CODECRACK_AZURE_ENDPOINT != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      # Only when Azure Trusted Signing is configured (secret present): restore the
+      # Trusted Signing client so make-app.ps1 can find Azure.CodeSigning.Dlib.dll.
+      # Skipped otherwise -> no effect on normal CI runs / forks / PRs.
+      - name: Prepare Azure Trusted Signing client
+        if: ${{ env.HAS_AZURE_SIGNING == 'true' }}
+        shell: pwsh
+        run: |
+          $dir = New-Item -ItemType Directory -Path "$env:RUNNER_TEMP\tsclient" -Force
+          @'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup>
+            <ItemGroup><PackageReference Include="Microsoft.Trusted.Signing.Client" Version="1.0.60" /></ItemGroup>
+          </Project>
+          '@ | Set-Content -Path "$dir\tsclient.csproj" -Encoding utf8
+          dotnet restore "$dir\tsclient.csproj"
+
+      # Publishes the WPF app self-contained/single-file, bundles the engine and an
+      # embedded CPython/pytest (scripts/fetch-python-runtime.ps1), and produces
+      # dist\CodeCrack\. CODECRACK_SKIP_LAUNCH keeps it headless. Signing is fully
+      # credential-guarded (PFX or Azure Trusted Signing) and skips gracefully when
+      # the secrets are absent (e.g. forks / PRs). See docs/SIGNING.md.
+      - name: Build the Windows app bundle
+        working-directory: winapp
+        shell: pwsh
+        env:
+          CODECRACK_SKIP_LAUNCH: "1"
+          CODECRACK_WINDOWS_CERT: ${{ secrets.CODECRACK_WINDOWS_CERT }}
+          CODECRACK_WINDOWS_CERT_PASSWORD: ${{ secrets.CODECRACK_WINDOWS_CERT_PASSWORD }}
+          CODECRACK_AZURE_ENDPOINT: ${{ secrets.CODECRACK_AZURE_ENDPOINT }}
+          CODECRACK_AZURE_ACCOUNT: ${{ secrets.CODECRACK_AZURE_ACCOUNT }}
+          CODECRACK_AZURE_CERT_PROFILE: ${{ secrets.CODECRACK_AZURE_CERT_PROFILE }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: ./make-app.ps1
+
+      - name: Verify bundle contents (notices present, no *.pdb)
+        shell: pwsh
+        run: Invoke-Pester -Path winapp\tests\dist-contents.Tests.ps1 -Output Detailed -CI
+
+      - name: Package dist\CodeCrack as a zip
+        shell: pwsh
+        run: Compress-Archive -Path dist\CodeCrack\* -DestinationPath CodeCrack-windows.zip -Force
+
+      - name: Upload distributable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CodeCrack-windows
+          path: CodeCrack-windows.zip
+          if-no-files-found: error
+
+  ui-smoke:
+    name: UI smoke (FlaUI)
+    # A PARALLEL signal, not a gate: UI automation is slower/flakier than the
+    # deterministic suites, so windows-build does NOT depend on it. It drives the
+    # packaged exe end-to-end (launch -> open file -> Analyze -> assert an Issue +
+    # "BUG PROVEN") — the automated proxy for the human click-test.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Build the Windows app bundle
+        working-directory: winapp
+        shell: pwsh
+        env:
+          CODECRACK_SKIP_LAUNCH: "1"
+        run: ./make-app.ps1
+      - name: FlaUI UI smoke (launch, Analyze, assert BUG PROVEN)
+        shell: pwsh
+        env:
+          CODECRACK_EXE: ${{ github.workspace }}\dist\CodeCrack\CodeCrack.exe
+        run: dotnet test winapp/CodeCrack.UiTests/CodeCrack.UiTests.csproj -c Release

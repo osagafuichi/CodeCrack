@@ -9,3 +9,9 @@ node_modules/
 *.egg-info/
 build/
 dist/
+graphify-out/
+.venv/
+bin/
+obj/
+*.user
+*.suo

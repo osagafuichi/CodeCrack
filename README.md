@@ -23,6 +23,10 @@ shell on top of it. Your code runs in isolation, never loose on your machine.
   syntax highlighting, an **Analyze** action, an **Issues** panel, and a **Tests** tab
   that shows *"N tests reproduce a real failure"* with per-test pass/fail badges and
   click-to-line. Plus project search, recent files, and session/window restore.
+- **Native Windows app** (`winapp/`) — a WPF + AvalonEdit IDE with the same file-tree,
+  editor, **Analyze**, **Issues**, and **Tests** flow, packaged as a self-contained,
+  no-Python-required download. See **[`winapp/README.md`](winapp/README.md)** to download
+  and run it. *(Early build — unsigned; see its README.)*
 - **Self-contained distribution** — the app bundles the engine **and an embedded Python
   runtime (with pytest)**, so it runs on a stock Mac with **no system `python3`
   required**.
@@ -30,6 +34,14 @@ shell on top of it. Your code runs in isolation, never loose on your machine.
   it as a downloadable artifact on every push.
 
 ## Install & run
+
+### The Windows app
+
+Download `CodeCrack-windows.zip` from the
+[Releases](https://github.com/osagafuichi/CodeCrack/releases) page, unzip it, and run
+`CodeCrack.exe` — no .NET or Python required. On first launch, click SmartScreen's
+**More info → Run anyway** (the early build is unsigned). Full download, usage, and
+troubleshooting guide: **[`winapp/README.md`](winapp/README.md)**.
 
 ### The macOS app (recommended)
 

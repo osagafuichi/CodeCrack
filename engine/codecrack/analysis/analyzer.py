@@ -14,13 +14,6 @@ import itertools
 from codecrack.core.models import Finding
 
 
-_counter = itertools.count(1)
-
-
-def _fid() -> str:
-    return f"F{next(_counter):03d}"
-
-
 def _func_params(fn: ast.FunctionDef | ast.AsyncFunctionDef) -> list[str]:
     a = fn.args
     names = [p.arg for p in (a.posonlyargs + a.args + a.kwonlyargs)]
@@ -32,8 +25,14 @@ class _Analyzer(ast.NodeVisitor):
         self.source = source
         self.findings: list[Finding] = []
         self._func_stack: list[ast.FunctionDef | ast.AsyncFunctionDef] = []
+        # Per-analysis counter so the same source always yields the same IDs,
+        # independent of how many analyses ran before in this process.
+        self._counter = itertools.count(1)
 
     # --- helpers -----------------------------------------------------------
+    def _fid(self) -> str:
+        return f"F{next(self._counter):03d}"
+
     def _here(self) -> ast.FunctionDef | ast.AsyncFunctionDef | None:
         return self._func_stack[-1] if self._func_stack else None
 
@@ -53,7 +52,7 @@ class _Analyzer(ast.NodeVisitor):
             evidence.update(extra)
         self.findings.append(
             Finding(
-                id=_fid(),
+                id=self._fid(),
                 kind=kind,
                 target=self._target(),
                 location=(getattr(node, "lineno", 0), getattr(node, "col_offset", 0)),
@@ -180,7 +179,7 @@ def analyze_source(source: str, *, filename: str = "<input>") -> list[Finding]:
     except SyntaxError as exc:  # noqa: BLE001 - reported as a finding
         return [
             Finding(
-                id=_fid(),
+                id="F001",
                 kind="syntax-error",
                 target="<module>",
                 location=(exc.lineno or 0, exc.offset or 0),

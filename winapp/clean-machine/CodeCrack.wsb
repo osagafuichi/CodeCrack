@@ -1,0 +1,26 @@
+<Configuration>
+  <!--
+    Windows Sandbox clean-room test for the CodeCrack Windows bundle.
+    Requires Windows Sandbox (Windows 10/11 Pro / Enterprise / Education — NOT Home).
+
+    Setup:
+      1. Download + unzip CodeCrack-windows.zip somewhere on the host.
+      2. Copy run-clean-smoke.ps1 (this folder) INTO that unzipped folder,
+         next to CodeCrack.exe.
+      3. Edit <HostFolder> below to that folder's absolute path.
+      4. Double-click this .wsb.
+
+    The sandbox is a pristine Windows with no Python and no .NET, so a passing run
+    proves the self-contained download works for a real end user.
+  -->
+  <MappedFolders>
+    <MappedFolder>
+      <HostFolder>REPLACE-WITH-ABSOLUTE-PATH-TO-YOUR-UNZIPPED\CodeCrack</HostFolder>
+      <SandboxFolder>C:\CodeCrack</SandboxFolder>
+      <ReadOnly>true</ReadOnly>
+    </MappedFolder>
+  </MappedFolders>
+  <LogonCommand>
+    <Command>powershell.exe -ExecutionPolicy Bypass -NoExit -File C:\CodeCrack\run-clean-smoke.ps1</Command>
+  </LogonCommand>
+</Configuration>

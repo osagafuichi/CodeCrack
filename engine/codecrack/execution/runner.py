@@ -29,6 +29,8 @@ from dataclasses import dataclass
 
 from codecrack.core.models import GeneratedTest
 
+IS_WINDOWS = os.name == "nt"
+
 try:  # POSIX only; rlimits are best-effort and skipped where unsupported.
     import resource
 except ImportError:  # pragma: no cover - non-POSIX
@@ -108,7 +110,8 @@ def _preexec(config: SandboxConfig):
 
     def apply() -> None:
         # New session/process group so a timeout can kill the whole tree.
-        os.setsid()
+        if hasattr(os, "setsid"):
+            os.setsid()
         if resource is None:
             return
         if config.cpu_seconds is not None:
@@ -133,14 +136,33 @@ def _scrubbed_env(results_path: str) -> dict[str, str]:
     """A minimal environment: enough to import pytest/python, nothing else.
 
     We deliberately drop the caller's environment (no secrets, no network
-    config) but preserve what a stdlib interpreter + pytest need to start.
+    config) but preserve what a stdlib interpreter + pytest need to start. The
+    allowlist is platform-shaped: POSIX and Windows require different keys.
     """
     src = os.environ
     env: dict[str, str] = {}
-    for key in ("PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "SYSTEMROOT"):
-        if key in src:
-            env[key] = src[key]
-    env.setdefault("PATH", "/usr/bin:/bin")
+    if IS_WINDOWS:
+        for key in (
+            "PATH",
+            "SYSTEMROOT",
+            "SYSTEMDRIVE",
+            "TEMP",
+            "TMP",
+            "PATHEXT",
+            "NUMBER_OF_PROCESSORS",
+            "LANG",
+            "LC_ALL",
+        ):
+            if key in src:
+                env[key] = src[key]
+        env.setdefault(
+            "PATH", os.path.join(src.get("SYSTEMROOT", r"C:\Windows"), "System32")
+        )
+    else:
+        for key in ("PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "SYSTEMROOT"):
+            if key in src:
+                env[key] = src[key]
+        env.setdefault("PATH", "/usr/bin:/bin")
     env["PYTHONHASHSEED"] = "0"  # determinism
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     env["CODECRACK_RESULTS"] = results_path
@@ -167,7 +189,9 @@ def execute_tests(
     if not tests:
         return tests
 
-    with tempfile.TemporaryDirectory(prefix="codecrack_exec_") as scratch:
+    with tempfile.TemporaryDirectory(
+        prefix="codecrack_exec_", ignore_cleanup_errors=True
+    ) as scratch:
         # Code under test, importable as ``{module}`` from the scratch CWD.
         with open(os.path.join(scratch, f"{module}.py"), "w", encoding="utf-8") as fh:
             fh.write(module_source)
@@ -196,21 +220,30 @@ def execute_tests(
         ]
 
         timed_out = False
-        proc = subprocess.Popen(
-            cmd,
+        popen_kwargs = dict(
             cwd=scratch,
             env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
-            preexec_fn=_preexec(config),
         )
+        if IS_WINDOWS:
+            # Windows has no POSIX process groups / preexec_fn. A new process
+            # group + no console window lets us kill the whole tree on timeout.
+            popen_kwargs["creationflags"] = (
+                subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
+            )
+        else:
+            popen_kwargs["preexec_fn"] = _preexec(config)
+        proc = subprocess.Popen(cmd, **popen_kwargs)
         try:
             captured, _ = proc.communicate(timeout=config.wall_timeout)
         except subprocess.TimeoutExpired:
             timed_out = True
             _kill_group(proc)
             captured, _ = proc.communicate()
+        finally:
+            proc.wait()
 
         _attach_results(tests, by_nodeid, results_path, timed_out, config, captured)
 
@@ -218,7 +251,22 @@ def execute_tests(
 
 
 def _kill_group(proc: subprocess.Popen) -> None:
-    """Kill the child's whole process group so infinite loops can't linger."""
+    """Kill the child's whole process tree so infinite loops can't linger."""
+    if IS_WINDOWS:
+        # No os.killpg on Windows; taskkill /T terminates the whole tree by PID.
+        try:
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
+        except OSError:
+            try:
+                proc.kill()
+            except OSError:
+                pass
+        return
     try:
         os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
     except (ProcessLookupError, PermissionError):

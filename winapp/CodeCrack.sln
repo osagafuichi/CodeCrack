@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CodeCrack.App.Core", "CodeCrack.App.Core\CodeCrack.App.Core.csproj", "{0BFF3108-8022-436F-9E91-21E5D46A42FE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CodeCrackApp", "CodeCrackApp\CodeCrackApp.csproj", "{DF493212-B99A-4E16-B54F-C7B2D055D712}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CodeCrack.Tests", "CodeCrack.Tests\CodeCrack.Tests.csproj", "{F233CAB5-5975-4013-A8FC-6CEF5C3F53C5}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{0BFF3108-8022-436F-9E91-21E5D46A42FE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0BFF3108-8022-436F-9E91-21E5D46A42FE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0BFF3108-8022-436F-9E91-21E5D46A42FE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0BFF3108-8022-436F-9E91-21E5D46A42FE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DF493212-B99A-4E16-B54F-C7B2D055D712}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DF493212-B99A-4E16-B54F-C7B2D055D712}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DF493212-B99A-4E16-B54F-C7B2D055D712}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DF493212-B99A-4E16-B54F-C7B2D055D712}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F233CAB5-5975-4013-A8FC-6CEF5C3F53C5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F233CAB5-5975-4013-A8FC-6CEF5C3F53C5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F233CAB5-5975-4013-A8FC-6CEF5C3F53C5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F233CAB5-5975-4013-A8FC-6CEF5C3F53C5}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,108 @@
+name: Release
+
+# Cut a Windows release by pushing a version tag, e.g.:
+#   git tag v1.0.0-pre && git push origin v1.0.0-pre
+# A tag containing a hyphen (v1.0.0-pre, v1.0.0-rc1) is published as a PRE-RELEASE.
+# The build is GATED on the tests below: a failure aborts before any release exists.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build + publish Windows release
+    runs-on: windows-latest
+    # `secrets` context is not allowed in step `if:`, so promote the check to a
+    # job-level env var (secrets ARE allowed in env) and gate on that below.
+    env:
+      HAS_AZURE_SIGNING: ${{ secrets.CODECRACK_AZURE_ENDPOINT != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # --- Gate: tests must pass before anything is built or published ---
+      - name: C# tests
+        run: dotnet test winapp/CodeCrack.Tests/CodeCrack.Tests.csproj -c Release
+
+      - name: Engine tests (Windows)
+        run: python -m pip install --upgrade pip && pip install -e "./engine[dev]" && pytest engine/tests -q
+
+      # Stamp the exe's version from the release tag: v1.2.3 -> 1.2.3 (a hyphenated
+      # tag like v1.2.3-rc1 stays a full prerelease version; make-app.ps1 derives the
+      # numeric file version). Exposed to later steps via $GITHUB_ENV.
+      - name: Resolve version from tag
+        shell: pwsh
+        run: |
+          $v = "${{ github.ref_name }}" -replace '^v', ''
+          "CODECRACK_VERSION=$v" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "CODECRACK_VERSION=$v"
+
+      # Only when Azure Trusted Signing is configured (secret present): restore the
+      # Trusted Signing client so make-app.ps1 can find Azure.CodeSigning.Dlib.dll in
+      # the NuGet cache. Skipped entirely otherwise -> zero effect on normal releases.
+      - name: Prepare Azure Trusted Signing client
+        if: ${{ env.HAS_AZURE_SIGNING == 'true' }}
+        shell: pwsh
+        run: |
+          $dir = New-Item -ItemType Directory -Path "$env:RUNNER_TEMP\tsclient" -Force
+          @'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup>
+            <ItemGroup><PackageReference Include="Microsoft.Trusted.Signing.Client" Version="1.0.60" /></ItemGroup>
+          </Project>
+          '@ | Set-Content -Path "$dir\tsclient.csproj" -Encoding utf8
+          dotnet restore "$dir\tsclient.csproj"
+
+      # --- Build the self-contained bundle (engine + embedded CPython + notices) ---
+      # Signing is credential-guarded: no secrets -> unsigned build still succeeds.
+      # PFX (CODECRACK_WINDOWS_CERT/_PASSWORD) or Azure Trusted Signing
+      # (CODECRACK_AZURE_* + the ambient Azure credential) both sign automatically
+      # once their secrets are set. See docs/SIGNING.md.
+      - name: Build the Windows app bundle
+        working-directory: winapp
+        shell: pwsh
+        env:
+          CODECRACK_SKIP_LAUNCH: "1"
+          CODECRACK_WINDOWS_CERT: ${{ secrets.CODECRACK_WINDOWS_CERT }}
+          CODECRACK_WINDOWS_CERT_PASSWORD: ${{ secrets.CODECRACK_WINDOWS_CERT_PASSWORD }}
+          CODECRACK_AZURE_ENDPOINT: ${{ secrets.CODECRACK_AZURE_ENDPOINT }}
+          CODECRACK_AZURE_ACCOUNT: ${{ secrets.CODECRACK_AZURE_ACCOUNT }}
+          CODECRACK_AZURE_CERT_PROFILE: ${{ secrets.CODECRACK_AZURE_CERT_PROFILE }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: ./make-app.ps1
+
+      - name: Verify bundle contents
+        shell: pwsh
+        run: Invoke-Pester -Path winapp\tests\dist-contents.Tests.ps1 -Output Detailed -CI
+
+      - name: Package + checksum
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist\CodeCrack\* -DestinationPath CodeCrack-windows.zip -Force
+          $hash = (Get-FileHash CodeCrack-windows.zip -Algorithm SHA256).Hash.ToLower()
+          "$hash  CodeCrack-windows.zip" | Out-File -Encoding ascii SHA256SUMS
+          Write-Host "SHA256: $hash"
+
+      # --- Publish the GitHub Release (pre-release for hyphenated tags) ---
+      - name: Publish GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $ghArgs = @($tag, 'CodeCrack-windows.zip', 'SHA256SUMS', '--title', $tag, '--generate-notes')
+          if ($tag -like '*-*') { $ghArgs += '--prerelease' }
+          gh release create @ghArgs

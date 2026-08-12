@@ -81,7 +81,12 @@ See `core-design-brief.md` for the adapter **contract** every adapter must satis
   adapters arrive.
 - **Sandboxed execution** — **never run user code in-process.** Isolation ladder:
   subprocess + rlimits → OS sandbox → containers → microVMs → WASM. Every run has
-  timeouts + memory caps + no network/host-FS by default.
+  timeouts + memory caps + no network/host-FS by default. The subprocess rung is
+  **platform-branched** (`os.name == "nt"`): POSIX uses `preexec_fn` (`os.setsid` +
+  `RLIMIT_CPU`/`RLIMIT_AS`) and `os.killpg`; Windows uses
+  `CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW` + `taskkill /F /T` and enforces the
+  wall-clock timeout only (no `RLIMIT_AS` memory cap). The engine is therefore **not
+  zero-change** on Windows — see the Phase 0 port in the Windows design spec.
 - **AI layer** — Claude API (latest models). AI **assists, it does not decide**:
   every suggested test/fix is executed in the sandbox and proven before it's
   trusted. Keep non-deterministic LLM steps outside the reproducible path.

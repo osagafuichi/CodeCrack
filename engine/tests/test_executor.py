@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import sys
 import time
+
+import pytest
 
 from codecrack.core.models import GeneratedTest
 from codecrack.execution import SandboxConfig, execute_tests
@@ -64,3 +67,25 @@ def test_infinite_loop_is_killed_without_hanging():
     assert t.outcome == "error"
     assert "timed out" in t.detail
     assert not t.reproduces_bug()
+
+
+@pytest.mark.skipif(
+    sys.platform != "linux",
+    reason="RLIMIT_AS is reliably enforced only on Linux; macOS silently ignores it "
+    "(4 GiB alloc succeeds under a 256 MiB cap) and Windows uses wall-timeout + taskkill",
+)
+def test_memory_cap_enforced_by_rlimit():
+    # 4 GiB allocation under a 256 MiB address-space cap must be stopped.
+    t = _test(
+        "test_hog",
+        "x = bytearray(4 * 1024 * 1024 * 1024)\nassert x",
+        expects="assertion",
+    )
+    execute_tests(
+        [t],
+        module_source="",
+        module="target",
+        config=SandboxConfig(memory_bytes=256 * 1024 * 1024, wall_timeout=15),
+    )
+    assert t.outcome in ("failed", "error")
+    assert t.duration >= 0.0
