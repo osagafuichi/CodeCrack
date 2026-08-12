@@ -27,12 +27,23 @@ public sealed class MainViewModel : ObservableObject
         _io = io;
         Issues.LineActivated += RevealLine;
         Tests.FindingActivated += RevealFinding;
+        Search = new SearchViewModel(() => FileTree.Root?.Path);
+        Search.RevealRequested += OnSearchReveal;
     }
 
     public EditorViewModel Editor { get; } = new();
     public IssuesViewModel Issues { get; } = new();
     public TestsViewModel Tests { get; } = new();
     public FileTreeViewModel FileTree { get; } = new();
+
+    /// Project-wide Find in Files. Selecting a hit opens the file and reveals the line.
+    public SearchViewModel Search { get; }
+
+    private void OnSearchReveal(CodeCrack.App.Core.Search.SearchHit hit)
+    {
+        OpenPath(hit.Path);
+        RevealLine(hit.Line);
+    }
 
     /// The AvalonEdit-hosting control (set by the view). Forwarded to the EditorViewModel.
     public IEditorHost? EditorHost
