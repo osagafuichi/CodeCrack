@@ -23,6 +23,8 @@ public static class Commands
         new("Run", nameof(Run), typeof(Commands));
     public static readonly RoutedUICommand Analyze =
         new("Analyze", nameof(Analyze), typeof(Commands));
+    public static readonly RoutedUICommand Preferences =
+        new("Preferences", nameof(Preferences), typeof(Commands));
 }
 
 public partial class MainWindow : Window
@@ -45,6 +47,7 @@ public partial class MainWindow : Window
         EditorHostSurface.Content = _editor;
         services.Main.EditorHost = _editor;
         ApplyEditorTheme();
+        _editor.ApplyFontSize(services.Settings.FontSize);
         WindowsTheme.SystemThemeChanged += (_, _) => Dispatcher.Invoke(ApplyEditorTheme);
 
         var tree = new FileTreeView { DataContext = services.Main.FileTree };
@@ -175,6 +178,16 @@ public partial class MainWindow : Window
 
     private void OnRun(object sender, ExecutedRoutedEventArgs e) => Vm?.Run();
     private void OnAnalyze(object sender, ExecutedRoutedEventArgs e) => Vm?.Analyze();
+
+    /// Edit ▸ Preferences… (Ctrl+,): open the modal Settings window, then re-apply theme + font.
+    private void OnPreferences(object sender, ExecutedRoutedEventArgs e)
+    {
+        if (_services is null) return;
+        var dlg = new Settings.SettingsWindow(_services.Settings) { Owner = this };
+        dlg.ShowDialog();
+        ApplyEditorTheme();
+        _editor?.ApplyFontSize(_services.Settings.FontSize);
+    }
     // Ctrl+F: AvalonEdit's SearchInputHandler (installed by CodeEditorControl) opens the
     // SearchPanel itself once the editor has focus.
     private void OnFind(object sender, ExecutedRoutedEventArgs e) => Vm?.EditorHost?.FocusEditor();

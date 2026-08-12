@@ -15,6 +15,7 @@
         <CommandBinding Command="Find"   Executed="OnFind"/>
         <CommandBinding Command="{x:Static local:Commands.Run}"     Executed="OnRun"     CanExecute="OnCanRun"/>
         <CommandBinding Command="{x:Static local:Commands.Analyze}" Executed="OnAnalyze" CanExecute="OnCanAnalyze"/>
+        <CommandBinding Command="{x:Static local:Commands.Preferences}" Executed="OnPreferences"/>
     </Window.CommandBindings>
     <Window.InputBindings>
         <KeyBinding Key="O" Modifiers="Ctrl"       Command="Open"/>
@@ -25,6 +26,7 @@
         <KeyBinding Key="F" Modifiers="Ctrl"       Command="Find"/>
         <KeyBinding Key="R" Modifiers="Ctrl"       Command="{x:Static local:Commands.Run}"/>
         <KeyBinding Key="B" Modifiers="Ctrl"       Command="{x:Static local:Commands.Analyze}"/>
+        <KeyBinding Key="OemComma" Modifiers="Ctrl" Command="{x:Static local:Commands.Preferences}"/>
     </Window.InputBindings>
     <DockPanel>
         <Menu DockPanel.Dock="Top">
@@ -39,6 +41,9 @@
             </MenuItem>
             <MenuItem Header="_Edit">
                 <MenuItem Header="_Find…"     Command="Find"/>
+                <Separator/>
+                <MenuItem Header="_Preferences…" Command="{x:Static local:Commands.Preferences}"
+                          InputGestureText="Ctrl+,"/>
             </MenuItem>
             <MenuItem Header="_Run">
                 <MenuItem Header="_Run"       Command="{x:Static local:Commands.Run}"/>

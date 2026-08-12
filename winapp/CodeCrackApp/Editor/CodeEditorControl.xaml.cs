@@ -63,6 +63,9 @@ public partial class CodeEditorControl : UserControl, IEditorHost
 
     public void FocusEditor() => Editor.TextArea.Focus();
 
+    /// <summary>Set the editor font size (from settings; re-applied when Preferences change).</summary>
+    public void ApplyFontSize(double size) => Editor.FontSize = size;
+
     // Bodies completed in Task 2.2 (SetLanguageByPath) and Task 2.3 (ApplyTheme).
     public void SetLanguageByPath(string filePath)
         => _textMate.SetGrammar(LanguageScope.ScopeForPath(_registryOptions, filePath));
