@@ -6,6 +6,12 @@
     <PlatformTarget>x64</PlatformTarget>
     <AssemblyName>CodeCrack</AssemblyName>
   </PropertyGroup>
+  <!-- Ship no debug symbols in the distributable (bundle size + no symbol leak);
+       Debug builds keep symbols. make-app.ps1 also prunes any stray *.pdb. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\CodeCrack.App.Core\CodeCrack.App.Core.csproj" />
   </ItemGroup>

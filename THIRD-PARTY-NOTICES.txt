@@ -1,0 +1,81 @@
+CodeCrack — Third-Party Notices
+================================
+
+The CodeCrack for Windows distribution redistributes the third-party components
+listed below. Their license notices are reproduced here as required. This file is
+shipped inside the distributable (dist\CodeCrack\THIRD-PARTY-NOTICES.txt).
+
+The embedded Python runtime additionally ships its own comprehensive license file
+covering CPython and every bundled native library — see `python\LICENSE.txt` inside
+the distribution (details in section 6).
+
+--------------------------------------------------------------------------------
+1. AvalonEdit  (NuGet: AvalonEdit 6.3.1.120)
+   https://github.com/icsharpcode/AvalonEdit
+   MIT License — Copyright (c) 2000-2025 AlphaSierraPapa for the SharpDevelop Team
+
+2. TextMateSharp  (NuGet: TextMateSharp 1.0.66)
+   https://github.com/danipen/TextMateSharp
+   MIT License — Copyright (c) 2021 Daniel Peñalba
+
+3. TextMateSharp.Grammars  (NuGet: TextMateSharp.Grammars 1.0.66)
+   https://github.com/danipen/TextMateSharp
+   MIT License — Copyright (c) 2021 Daniel Peñalba
+   NOTE: This package redistributes numerous TextMate grammar and theme files
+   originally authored by third parties (e.g. the VS Code / Microsoft grammar
+   collection and community grammars). Each such grammar carries its own license
+   (predominantly MIT) in its source header/repository; those licenses apply to
+   the respective grammar files bundled within this package.
+
+4. System.Security.Cryptography.ProtectedData  (NuGet 8.0.0)
+   https://github.com/dotnet/runtime
+   MIT License — Copyright (c) .NET Foundation and Contributors
+
+5. .NET 8 Runtime  (bundled by the self-contained publish)
+   https://github.com/dotnet/runtime
+   MIT License — Copyright (c) .NET Foundation and Contributors
+   The .NET runtime's own third-party notices are published at
+   https://github.com/dotnet/runtime/blob/main/THIRD-PARTY-NOTICES.TXT
+
+--------------------------------------------------------------------------------
+MIT License (applies to components 1-5 above; the copyright holder for each is as
+listed under that component):
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+--------------------------------------------------------------------------------
+6. Embedded CPython 3.12 + bundled native libraries
+   (via astral-sh/python-build-standalone, release 20260623)
+   https://github.com/astral-sh/python-build-standalone
+
+   The embedded interpreter is distributed under the PSF License Agreement.
+   python-build-standalone additionally bundles native components including (but
+   not limited to) OpenSSL, libffi, Tcl/Tk, SQLite, bzip2, xz/liblzma, zlib, and
+   mpdecimal, each under its own license (Apache-2.0 / OpenSSL, MIT, BSD, TCL,
+   Public Domain, and similar permissive terms).
+
+   The COMPLETE, canonical license text for CPython and every bundled native
+   library is redistributed verbatim inside this distribution at:
+       python\LICENSE.txt
+   Refer to that file for the full PSF License Agreement and all component
+   licenses. It is the authoritative notice for section 6.
+
+7. pytest  (installed into the embedded runtime)
+   https://github.com/pytest-dev/pytest
+   MIT License — Copyright (c) 2004 Holger Krekel and others

@@ -61,6 +61,14 @@ function Invoke-MakeApp {
     Get-ChildItem -Path $pyDest -Recurse -Directory -Filter '__pycache__' -ErrorAction SilentlyContinue |
         Remove-Item -Recurse -Force
 
+    Write-Host 'Bundling license notices ...'
+    Copy-Item (Join-Path $repoRoot 'THIRD-PARTY-NOTICES.txt') $distDir
+    Copy-Item (Join-Path $repoRoot 'LICENSE') (Join-Path $distDir 'LICENSE.txt')
+
+    Write-Host 'Pruning debug symbols (*.pdb) from the distributable ...'
+    Get-ChildItem -Path $distDir -Recurse -Filter '*.pdb' -ErrorAction SilentlyContinue |
+        Remove-Item -Force
+
     $exe = Join-Path $distDir 'CodeCrack.exe'
     $signtool = Get-SignTool
     if ($signtool) {
