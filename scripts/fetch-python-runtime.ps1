@@ -17,6 +17,10 @@ $ErrorActionPreference = 'Stop'
 $script:PbsRelease = '20260623'
 $script:PyVersion  = '3.12.13'
 $script:PytestSpec = 'pytest>=8,<9'
+# SHA256 of the pinned x86_64-pc-windows-msvc-install_only tarball. Verified before
+# extract so a corrupted/tampered/substituted download can never be bundled. Update
+# this together with PbsRelease/PyVersion (hash the new asset with Get-FileHash).
+$script:PbsSha256  = 'c6af85bb83d5158c9ff71f50dfad467853d1cd236f932b144e87e26e2ea2a83e'
 
 function Get-PbsAsset {
     param([Parameter(Mandatory)][string]$PyVersion,
@@ -51,6 +55,16 @@ function Invoke-FetchRuntime {
     } else {
         Write-Host "Using cached $asset"
     }
+
+    # Verify integrity before trusting the tarball — refuse to extract on mismatch.
+    $actualHash = (Get-FileHash -Path $tarball -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($actualHash -ne $script:PbsSha256) {
+        Remove-Item -Force $tarball -ErrorAction SilentlyContinue
+        throw ("python-build-standalone SHA256 mismatch for $asset`n" +
+               "  expected $($script:PbsSha256)`n  actual   $actualHash`n" +
+               'Refusing to extract an unverified runtime (removed the bad tarball).')
+    }
+    Write-Host "Verified $asset (SHA256 OK)."
 
     if (-not (Test-Path $pythonBin)) {
         Write-Host "Extracting runtime into $runtimeDir ..."
