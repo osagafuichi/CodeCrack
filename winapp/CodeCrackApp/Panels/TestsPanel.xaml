@@ -14,6 +14,11 @@
         <TextBlock DockPanel.Dock="Top" Margin="14,8" FontWeight="Bold"
                    Text="{Binding Headline}"
                    Visibility="{Binding HasSummary, Converter={StaticResource BoolToVisible}}" />
+        <Grid>
+        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="Gray"
+                   AutomationProperties.AutomationId="TestsEmptyState"
+                   Text="{Binding EmptyStateMessage}"
+                   Visibility="{Binding ShowEmptyState, Converter={StaticResource BoolToVisible}}" />
         <ListBox ItemsSource="{Binding Tests}" BorderThickness="0"
                  AutomationProperties.AutomationId="TestsList"
                  HorizontalContentAlignment="Stretch"
@@ -46,5 +51,6 @@
                 </DataTemplate>
             </ListBox.ItemTemplate>
         </ListBox>
+        </Grid>
     </DockPanel>
 </UserControl>

@@ -66,6 +66,14 @@ public partial class CodeEditorControl : UserControl, IEditorHost
     /// <summary>Set the editor font size (from settings; re-applied when Preferences change).</summary>
     public void ApplyFontSize(double size) => Editor.FontSize = size;
 
+    /// <summary>Apply the saved indentation preference (from settings; re-applied when Preferences
+    /// change): Tab inserts spaces vs a real tab, and the indent/tab width in columns.</summary>
+    public void ApplyIndentation(bool usesSpaces, int width)
+    {
+        Editor.Options.ConvertTabsToSpaces = usesSpaces;
+        if (width > 0) Editor.Options.IndentationSize = width;
+    }
+
     // Bodies completed in Task 2.2 (SetLanguageByPath) and Task 2.3 (ApplyTheme).
     public void SetLanguageByPath(string filePath)
         => _textMate.SetGrammar(LanguageScope.ScopeForPath(_registryOptions, filePath));

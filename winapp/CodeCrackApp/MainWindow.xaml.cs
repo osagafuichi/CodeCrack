@@ -50,7 +50,12 @@ public partial class MainWindow : Window
         services.Main.EditorHost = _editor;
         ApplyEditorTheme();
         _editor.ApplyFontSize(services.Settings.FontSize);
+        ApplyEditorIndentation();
         WindowsTheme.SystemThemeChanged += (_, _) => Dispatcher.Invoke(ApplyEditorTheme);
+
+        // Auto-reveal the relevant bottom panel once a command produces results.
+        services.Main.RevealResultsRequested += panel =>
+            Dispatcher.Invoke(() => RevealResultsPanel(panel));
 
         var tree = new FileTreeView { DataContext = services.Main.FileTree };
         tree.FileActivated += OpenFromUser;
@@ -73,6 +78,17 @@ public partial class MainWindow : Window
         var spec = EditorThemeRegistry.Resolve(_services.Settings.EditorTheme, WindowsTheme.AppsUseLightTheme);
         _editor.ApplyTheme(spec);
     }
+
+    /// Push the saved indentation preference (spaces vs tabs + width) into the editor.
+    private void ApplyEditorIndentation()
+    {
+        if (_services is null || _editor is null) return;
+        _editor.ApplyIndentation(_services.Settings.IndentUsesSpaces, _services.Settings.IndentWidth);
+    }
+
+    /// Select the bottom results tab the VM asked to surface (Issues after Analyze, Console after Run).
+    private void RevealResultsPanel(ResultsPanel panel) =>
+        ResultsTabs.SelectedIndex = panel == ResultsPanel.Console ? 2 : 0;
 
     // ---- Open / Recent files --------------------------------------------
 
@@ -169,8 +185,8 @@ public partial class MainWindow : Window
 
     private void OnCloseTab(object sender, ExecutedRoutedEventArgs e)
     {
-        Vm?.CloseActive();
-        PersistSession();
+        if (Vm?.Active is null) return;
+        CloseTab(Vm.Active);
     }
 
     /// Close button on a tab-strip header: select that doc, then close it (close-neighbor rule).
@@ -180,9 +196,56 @@ public partial class MainWindow : Window
         if ((sender as FrameworkElement)?.Tag is OpenDocument doc)
         {
             Vm.Active = doc;
-            Vm.CloseActive();
+            CloseTab(doc);
+        }
+    }
+
+    /// Close a tab, first prompting Save / Discard / Cancel if it has unsaved changes so edits
+    /// are never silently discarded. Cancel aborts the close.
+    private void CloseTab(OpenDocument doc)
+    {
+        if (Vm is null) return;
+        Vm.Editor.SyncFromHost();   // reflect live buffer edits into IsDirty before deciding
+        if (ClosePolicy.ForClosingTab(doc) == CloseAction.Prompt && !ConfirmSaveBeforeClose(doc))
+            return;                 // user cancelled
+        Vm.CloseActive();
+        PersistSession();
+    }
+
+    /// Prompt for a single dirty document. Returns true when it is safe to proceed (saved or
+    /// intentionally discarded), false when the user cancelled (or cancelled the Save dialog).
+    private bool ConfirmSaveBeforeClose(OpenDocument doc)
+    {
+        var answer = MessageBox.Show(this,
+            $"Do you want to save the changes you made to {doc.DisplayName}?\n\n" +
+            "Your changes will be lost if you don't save them.",
+            "CodeCrack", MessageBoxButton.YesNoCancel, MessageBoxImage.Warning);
+        return answer switch
+        {
+            MessageBoxResult.Yes => SaveForClose(doc),   // Save
+            MessageBoxResult.No => true,                 // Discard
+            _ => false,                                  // Cancel
+        };
+    }
+
+    /// Save a document as part of a close/quit flow, routing untitled buffers through Save As.
+    /// Returns false if the Save As dialog was cancelled (so the close aborts).
+    private bool SaveForClose(OpenDocument doc)
+    {
+        if (Vm is null) return false;
+        Vm.Active = doc;
+        if (string.IsNullOrEmpty(doc.Path))
+        {
+            var dlg = new SaveFileDialog { Title = "Save As" };
+            if (dlg.ShowDialog(this) != true) return false;
+            Vm.SaveToPath(dlg.FileName);
             PersistSession();
         }
+        else
+        {
+            Vm.Save();
+        }
+        return true;
     }
 
     private void OnRun(object sender, ExecutedRoutedEventArgs e) => Vm?.Run();
@@ -200,6 +263,7 @@ public partial class MainWindow : Window
         dlg.ShowDialog();
         ApplyEditorTheme();
         _editor?.ApplyFontSize(_services.Settings.FontSize);
+        ApplyEditorIndentation();
     }
     // Ctrl+F: AvalonEdit's SearchInputHandler (installed by CodeEditorControl) opens the
     // SearchPanel itself once the editor has focus.
@@ -227,6 +291,20 @@ public partial class MainWindow : Window
             var doc = Vm.Documents.FirstOrDefault(
                 d => string.Equals(d.Path, full, StringComparison.OrdinalIgnoreCase));
             if (doc is not null) Vm.Active = doc;
+        }
+    }
+
+    /// Quit guard: if any buffer has unsaved changes, prompt Save / Discard / Cancel per dirty
+    /// document instead of silently discarding. Cancelling any prompt aborts the whole quit.
+    private void OnWindowClosing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (Vm is null) return;
+        Vm.Editor.SyncFromHost();   // reflect the active buffer's live edits before the dirty check
+        if (ClosePolicy.ForQuit(Vm.Documents) != CloseAction.Prompt) return;
+
+        foreach (var doc in ClosePolicy.DirtyDocuments(Vm.Documents))
+        {
+            if (!ConfirmSaveBeforeClose(doc)) { e.Cancel = true; return; }
         }
     }
 

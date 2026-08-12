@@ -10,6 +10,7 @@
     <UserControl.Resources>
         <conv:SeverityToBrushConverter x:Key="SeverityToBrush" />
         <conv:NullToCollapsedConverter x:Key="NullToCollapsed" />
+        <conv:BoolToVisibleConverter x:Key="BoolToVisible" />
     </UserControl.Resources>
     <DockPanel>
         <TextBlock DockPanel.Dock="Top" Margin="12,6" FontWeight="Bold"
@@ -19,6 +20,11 @@
                    TextWrapping="Wrap" FontFamily="Consolas"
                    Text="{Binding ErrorMessage}"
                    Visibility="{Binding ErrorMessage, Converter={StaticResource NullToCollapsed}}" />
+        <Grid>
+        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="Gray"
+                   AutomationProperties.AutomationId="IssuesEmptyState"
+                   Text="{Binding EmptyStateMessage}"
+                   Visibility="{Binding ShowEmptyState, Converter={StaticResource BoolToVisible}}" />
         <ListBox ItemsSource="{Binding Findings}" BorderThickness="0"
                  AutomationProperties.AutomationId="IssuesList"
                  HorizontalContentAlignment="Stretch"
@@ -41,5 +47,6 @@
                 </DataTemplate>
             </ListBox.ItemTemplate>
         </ListBox>
+        </Grid>
     </DockPanel>
 </UserControl>

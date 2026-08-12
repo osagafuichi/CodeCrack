@@ -6,6 +6,7 @@
         Icon="pack://application:,,,/Assets/CodeCrack.ico"
         SourceInitialized="OnWindowSourceInitialized"
         Activated="OnWindowActivated"
+        Closing="OnWindowClosing"
         LocationChanged="OnLocationChanged" SizeChanged="OnWindowSizeChanged">
     <Window.CommandBindings>
         <CommandBinding Command="Open"   Executed="OnOpen"/>
@@ -99,7 +100,7 @@
                                         </Style>
                                     </TextBlock.Style>
                                 </TextBlock>
-                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center"/>
                                 <Button Content="&#10005;" Margin="6,0,0,0" Padding="3,0" FontSize="10"
                                         Background="Transparent" BorderThickness="0" Cursor="Hand"
                                         ToolTip="Close Tab" Tag="{Binding}" Click="OnTabClose"/>
@@ -110,7 +111,7 @@
                 <ContentControl x:Name="EditorHostSurface" Grid.Row="1"/>
                 <GridSplitter Grid.Row="2" Height="4" HorizontalAlignment="Stretch"
                               Background="#22000000" ShowsPreview="False"/>
-                <TabControl Grid.Row="3">
+                <TabControl x:Name="ResultsTabs" Grid.Row="3">
                     <TabItem Header="Issues"><ContentControl x:Name="IssuesHost"/></TabItem>
                     <TabItem Header="Tests"><ContentControl x:Name="TestsHost"/></TabItem>
                     <TabItem Header="Console"><ContentControl x:Name="ConsoleHost"/></TabItem>
