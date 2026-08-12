@@ -45,4 +45,7 @@ public sealed class FileIO : IFileIO
         }
         return File.GetLastWriteTimeUtc(path);
     }
+
+    public DateTime GetLastWriteUtc(string path) =>
+        File.Exists(path) ? File.GetLastWriteTimeUtc(path) : DateTime.MinValue;
 }

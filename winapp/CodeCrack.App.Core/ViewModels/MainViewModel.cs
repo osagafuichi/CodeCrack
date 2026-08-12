@@ -99,6 +99,59 @@ public sealed class MainViewModel : ObservableObject
         return msg;
     }
 
+    /// Sync wrapper for the Analyze command (fire-and-forget; CanAnalyze guards re-entry).
+    public void Analyze() => _ = AnalyzeAsync();
+
+    /// Opens (or re-focuses) the document at <paramref name="path"/>, loading its text and
+    /// stored mtime via IFileIO. Dialogs live in the view; this takes a resolved path.
+    public OpenDocument OpenPath(string path)
+    {
+        var full = Path.GetFullPath(path);
+        var existing = Documents.FirstOrDefault(
+            d => string.Equals(d.Path, full, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null) { Active = existing; return existing; }
+
+        var doc = new OpenDocument
+        {
+            Path = full,
+            Text = _io.Read(full),
+            IsDirty = false,
+            LastWriteUtc = _io.GetLastWriteUtc(full),
+        };
+        Documents.Add(doc);
+        Active = doc;
+        return doc;
+    }
+
+    /// Creates a fresh untitled buffer and makes it active.
+    public OpenDocument NewDocument()
+    {
+        var doc = new OpenDocument { Path = string.Empty, Text = string.Empty, IsDirty = false };
+        Documents.Add(doc);
+        Active = doc;
+        return doc;
+    }
+
+    /// Save As: point the active buffer at <paramref name="path"/>, then persist via Save().
+    public string SaveToPath(string path)
+    {
+        if (Active is null) return "";
+        Active.Path = Path.GetFullPath(path);
+        return Save();
+    }
+
+    /// Closes the active document, choosing the next active by the close-neighbor rule
+    /// (prefer left, else right, else none). mac discards unsaved changes silently.
+    public void CloseActive()
+    {
+        if (Active is null) return;
+        int idx = Documents.IndexOf(Active);
+        if (idx < 0) return;
+        int? next = TabManagement.SelectAfterClose(Documents.Count, idx);
+        Documents.RemoveAt(idx);
+        Active = next is int n ? Documents[n] : null;
+    }
+
     /// Save the current file, run the engine, and surface findings/tests.
     public async Task AnalyzeAsync(CancellationToken ct = default)
     {

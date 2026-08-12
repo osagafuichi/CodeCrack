@@ -11,4 +11,5 @@ public sealed class FakeFileIO : IFileIO
 
     public string Read(string path) => Files.TryGetValue(path, out var t) ? t : "";
     public DateTime AtomicWrite(string path, string text) { Files[path] = text; return NextWriteUtc; }
+    public DateTime GetLastWriteUtc(string path) => NextWriteUtc;
 }

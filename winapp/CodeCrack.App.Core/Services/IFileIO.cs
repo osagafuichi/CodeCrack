@@ -4,4 +4,5 @@ public interface IFileIO
 {
     string Read(string path);
     DateTime AtomicWrite(string path, string text); // UTF-8 no BOM; returns new LastWriteUtc.
+    DateTime GetLastWriteUtc(string path);          // DateTime.MinValue when the file is absent.
 }
