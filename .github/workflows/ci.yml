@@ -97,3 +97,37 @@ jobs:
           name: PPIDE-macos
           path: macapp/PPIDE.app.zip
           if-no-files-found: error
+
+  windows-build:
+    name: Windows app (self-contained + dist artifact)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      # Publishes the WPF app self-contained/single-file, bundles the engine and an
+      # embedded CPython/pytest (scripts/fetch-python-runtime.ps1), and produces
+      # dist\CodeCrack\. CODECRACK_SKIP_LAUNCH keeps it headless. Signing is guarded
+      # and skips gracefully when the secret is absent (e.g. forks / PRs).
+      - name: Build the Windows app bundle
+        working-directory: winapp
+        shell: pwsh
+        env:
+          CODECRACK_SKIP_LAUNCH: "1"
+          CODECRACK_WINDOWS_CERT: ${{ secrets.CODECRACK_WINDOWS_CERT }}
+          CODECRACK_WINDOWS_CERT_PASSWORD: ${{ secrets.CODECRACK_WINDOWS_CERT_PASSWORD }}
+        run: ./make-app.ps1
+
+      - name: Package dist\CodeCrack as a zip
+        shell: pwsh
+        run: Compress-Archive -Path dist\CodeCrack\* -DestinationPath CodeCrack-windows.zip -Force
+
+      - name: Upload distributable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CodeCrack-windows
+          path: CodeCrack-windows.zip
+          if-no-files-found: error
