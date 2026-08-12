@@ -32,6 +32,7 @@ public sealed class MainViewModel : ObservableObject
     public EditorViewModel Editor { get; } = new();
     public IssuesViewModel Issues { get; } = new();
     public TestsViewModel Tests { get; } = new();
+    public FileTreeViewModel FileTree { get; } = new();
 
     /// The AvalonEdit-hosting control (set by the view). Forwarded to the EditorViewModel.
     public IEditorHost? EditorHost
@@ -120,6 +121,7 @@ public sealed class MainViewModel : ObservableObject
         };
         Documents.Add(doc);
         Active = doc;
+        FileTree.BuildFrom(full); // rebuild the sidebar from the opened file's directory
         return doc;
     }
 
@@ -137,7 +139,9 @@ public sealed class MainViewModel : ObservableObject
     {
         if (Active is null) return "";
         Active.Path = Path.GetFullPath(path);
-        return Save();
+        var msg = Save();
+        FileTree.BuildFrom(Active.Path); // Save-As creates a file; refresh the sidebar
+        return msg;
     }
 
     /// Closes the active document, choosing the next active by the close-neighbor rule

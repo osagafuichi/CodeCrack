@@ -13,6 +13,7 @@ public sealed class TextMateInstallation
     private readonly Registry _registry;
     private readonly RegistryOptions _options;
     private readonly TextMateColorizer _colorizer;
+    private TextDocument? _document;
 
     internal TextMateInstallation(TextEditor editor, RegistryOptions options)
     {
@@ -21,7 +22,20 @@ public sealed class TextMateInstallation
         _registry = new Registry(options);
         _colorizer = new TextMateColorizer(_registry);
         _editor.TextArea.TextView.LineTransformers.Add(_colorizer);
-        _editor.Document.Changed += OnDocumentChanged;
+        _document = _editor.Document;
+        if (_document is not null) _document.Changed += OnDocumentChanged;
+        // A tab swap replaces TextEditor.Document; re-hook the change listener to the new
+        // document so multi-line highlight invalidation keeps working after the swap.
+        _editor.DocumentChanged += OnEditorDocumentChanged;
+    }
+
+    private void OnEditorDocumentChanged(object? sender, EventArgs e)
+    {
+        if (_document is not null) _document.Changed -= OnDocumentChanged;
+        _document = _editor.Document;
+        if (_document is not null) _document.Changed += OnDocumentChanged;
+        _colorizer.InvalidateFrom(1);          // fresh document: drop stale token cache
+        _editor.TextArea.TextView.Redraw();
     }
 
     public RegistryOptions Options => _options;

@@ -10,11 +10,16 @@ public sealed record FileNode(string Path, string Name, bool IsDirectory, IReadO
 
 /// Eager project tree. Skips hidden entries, sorts directories first then names
 /// case-insensitively — a byte-for-byte port of FileTreeBuilder.build.
-public sealed class FileTreeViewModel
+public sealed class FileTreeViewModel : ObservableObject
 {
     private static readonly IReadOnlyList<FileNode> None = Array.Empty<FileNode>();
 
-    public FileNode? Root { get; private set; }
+    private FileNode? _root;
+    public FileNode? Root
+    {
+        get => _root;
+        private set => Set(ref _root, value);
+    }
 
     /// Build the tree. A directory roots there; a single file roots at its parent directory.
     public void BuildFrom(string fileOrDirPath)

@@ -57,7 +57,21 @@
             <!-- Zero-width splitter: draggable but invisible (SplitDividerHider analog). -->
             <GridSplitter Grid.Column="1" Width="1" HorizontalAlignment="Center"
                           Background="Transparent" ShowsPreview="False"/>
-            <ContentControl x:Name="EditorHostSurface" Grid.Column="2"/>
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="240" MinHeight="0"/>
+                </Grid.RowDefinitions>
+                <ContentControl x:Name="EditorHostSurface" Grid.Row="0"/>
+                <GridSplitter Grid.Row="1" Height="4" HorizontalAlignment="Stretch"
+                              Background="#22000000" ShowsPreview="False"/>
+                <TabControl Grid.Row="2">
+                    <TabItem Header="Issues"><ContentControl x:Name="IssuesHost"/></TabItem>
+                    <TabItem Header="Tests"><ContentControl x:Name="TestsHost"/></TabItem>
+                    <TabItem Header="Console"><ContentControl x:Name="ConsoleHost"/></TabItem>
+                </TabControl>
+            </Grid>
         </Grid>
     </DockPanel>
 </Window>
