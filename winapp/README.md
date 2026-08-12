@@ -117,9 +117,13 @@ and PowerShell 7+ (`pwsh`). `tar` ships with Windows 10+.
 dotnet build winapp\CodeCrack.sln -c Debug
 dotnet run --project winapp\CodeCrackApp\CodeCrackApp.csproj
 
-# Tests
+# Tests (deterministic unit + integration gate)
 dotnet test winapp\CodeCrack.sln
 pwsh -NoProfile -Command "Invoke-Pester -Path scripts\tests, winapp\tests -Output Detailed"
+
+# UI smoke: drives the PACKAGED exe (launch -> open file -> Analyze -> assert BUG PROVEN)
+# via FlaUI. Needs a built dist\CodeCrack\ (make-app.ps1 first). Not part of the sln gate.
+dotnet test winapp\CodeCrack.UiTests\CodeCrack.UiTests.csproj
 
 # Package the self-contained distributable -> dist\CodeCrack\
 $env:CODECRACK_SKIP_LAUNCH = "1"
@@ -131,4 +135,14 @@ an embedded CPython (with pytest via `scripts\fetch-python-runtime.ps1`), and wr
 `dist\CodeCrack\`. It signs `CodeCrack.exe` only when `CODECRACK_WINDOWS_CERT` points at a
 `.pfx` (with `CODECRACK_WINDOWS_CERT_PASSWORD`); otherwise signing is skipped. CI
 (`.github/workflows/ci.yml`, job `windows-build`) runs the same script headless and, once
-its tests are green, uploads `CodeCrack-windows.zip`.
+its tests are green, uploads `CodeCrack-windows.zip`; a parallel `ui-smoke` job runs the
+FlaUI test above against the freshly built bundle.
+
+### Clean-room verification (pre-release)
+
+The self-contained claim ("no .NET / no Python needed") should be verified on a pristine
+machine before a public release — CI runners are pre-provisioned, so they don't prove it.
+`winapp\clean-machine\` has a **Windows Sandbox** config (`CodeCrack.wsb`) and
+`run-clean-smoke.ps1` that, inside a fresh no-Python/no-.NET box, run the bundled engine
+to prove a bug reproduces and confirm the GUI launches. Windows Sandbox needs Windows
+Pro/Enterprise/Education (not Home); see the comments in `CodeCrack.wsb`.

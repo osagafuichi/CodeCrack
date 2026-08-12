@@ -142,3 +142,27 @@ jobs:
           name: CodeCrack-windows
           path: CodeCrack-windows.zip
           if-no-files-found: error
+
+  ui-smoke:
+    name: UI smoke (FlaUI)
+    # A PARALLEL signal, not a gate: UI automation is slower/flakier than the
+    # deterministic suites, so windows-build does NOT depend on it. It drives the
+    # packaged exe end-to-end (launch -> open file -> Analyze -> assert an Issue +
+    # "BUG PROVEN") — the automated proxy for the human click-test.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Build the Windows app bundle
+        working-directory: winapp
+        shell: pwsh
+        env:
+          CODECRACK_SKIP_LAUNCH: "1"
+        run: ./make-app.ps1
+      - name: FlaUI UI smoke (launch, Analyze, assert BUG PROVEN)
+        shell: pwsh
+        env:
+          CODECRACK_EXE: ${{ github.workspace }}\dist\CodeCrack\CodeCrack.exe
+        run: dotnet test winapp/CodeCrack.UiTests/CodeCrack.UiTests.csproj -c Release
