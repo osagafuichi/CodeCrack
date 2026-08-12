@@ -108,6 +108,10 @@ jobs:
     # only cut when its own tests (C# app + Python engine) are green.
     needs: [csharp-tests, engine-tests]
     runs-on: windows-latest
+    # `secrets` context is not allowed in step `if:`, so promote the check to a
+    # job-level env var (secrets ARE allowed in env) and gate on that below.
+    env:
+      HAS_AZURE_SIGNING: ${{ secrets.CODECRACK_AZURE_ENDPOINT != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -119,7 +123,7 @@ jobs:
       # Trusted Signing client so make-app.ps1 can find Azure.CodeSigning.Dlib.dll.
       # Skipped otherwise -> no effect on normal CI runs / forks / PRs.
       - name: Prepare Azure Trusted Signing client
-        if: ${{ secrets.CODECRACK_AZURE_ENDPOINT != '' }}
+        if: ${{ env.HAS_AZURE_SIGNING == 'true' }}
         shell: pwsh
         run: |
           $dir = New-Item -ItemType Directory -Path "$env:RUNNER_TEMP\tsclient" -Force
