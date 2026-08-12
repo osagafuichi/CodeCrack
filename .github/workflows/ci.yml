@@ -30,11 +30,15 @@ jobs:
           git diff --exit-code -- engine/tests/golden/analysis_result.json
 
   csharp-tests:
+    # Windows-only: CodeCrack ships to Windows, and the Core's path/status/name
+    # behavior is intentionally Windows-shaped (Path.GetFileName on "C:\..\x.py",
+    # cmd-based run table). Running these on Linux produced false failures for a
+    # target the product never runs on; the cross-OS signal lives in engine-tests.
     name: csharp-tests (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest]
+        os: [windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -100,6 +104,9 @@ jobs:
 
   windows-build:
     name: Windows app (self-contained + dist artifact)
+    # Never publish a distributable from a red pipeline: the Windows artifact is
+    # only cut when its own tests (C# app + Python engine) are green.
+    needs: [csharp-tests, engine-tests]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
