@@ -27,12 +27,17 @@ public static class Commands
         new("Preferences", nameof(Preferences), typeof(Commands));
     public static readonly RoutedUICommand CancelAnalyze =
         new("Cancel Analyze", nameof(CancelAnalyze), typeof(Commands));
+    public static readonly RoutedUICommand OpenFolder =
+        new("Open Folder", nameof(OpenFolder), typeof(Commands));
+    public static readonly RoutedUICommand FindInFiles =
+        new("Find in Files", nameof(FindInFiles), typeof(Commands));
 }
 
 public partial class MainWindow : Window
 {
     private AppServices? _services;
     private CodeEditorControl? _editor;
+    private SearchView? _searchView;
 
     private MainViewModel? Vm => DataContext as MainViewModel;
 
@@ -64,6 +69,8 @@ public partial class MainWindow : Window
         IssuesHost.Content = new IssuesPanel { DataContext = services.Main.Issues };
         TestsHost.Content = new TestsPanel { DataContext = services.Main.Tests };
         ConsoleHost.Content = new ConsolePanel { DataContext = services.Main.Console, Tag = services.Main };
+        _searchView = new SearchView { DataContext = services.Main.Search };
+        SearchHost.Content = _searchView;
 
         services.Status.Changed += (_, _) =>
             Dispatcher.Invoke(() => StatusText.Text = services.Status.Text);
@@ -157,6 +164,24 @@ public partial class MainWindow : Window
         if (Vm is null) return;
         var dlg = new OpenFileDialog { Title = "Open" };
         if (dlg.ShowDialog(this) == true) OpenFromUser(dlg.FileName);
+    }
+
+    /// File ▸ Open Folder…: pick a directory and root the file tree there (no file is opened).
+    private void OnOpenFolder(object sender, ExecutedRoutedEventArgs e)
+    {
+        if (_services is null || Vm is null) return;
+        var dlg = new OpenFolderDialog { Title = "Open Folder" };
+        if (dlg.ShowDialog(this) != true) return;
+        Vm.FileTree.BuildFrom(dlg.FolderName);
+        _services.Status.Set($"Opened folder {Path.GetFileName(dlg.FolderName.TrimEnd(Path.DirectorySeparatorChar))}");
+    }
+
+    /// Edit ▸ Find in Files… (Ctrl+Shift+F): surface the Search tab and focus its query box.
+    private void OnFindInFiles(object sender, ExecutedRoutedEventArgs e)
+    {
+        ResultsTabs.SelectedItem = SearchTab;
+        Dispatcher.BeginInvoke(new Action(() => _searchView?.FocusQuery()),
+            System.Windows.Threading.DispatcherPriority.Input);
     }
 
     private void OnNew(object sender, ExecutedRoutedEventArgs e)
@@ -265,9 +290,8 @@ public partial class MainWindow : Window
         _editor?.ApplyFontSize(_services.Settings.FontSize);
         ApplyEditorIndentation();
     }
-    // Ctrl+F: AvalonEdit's SearchInputHandler (installed by CodeEditorControl) opens the
-    // SearchPanel itself once the editor has focus.
-    private void OnFind(object sender, ExecutedRoutedEventArgs e) => Vm?.EditorHost?.FocusEditor();
+    // Ctrl+F: open AvalonEdit's in-file find bar and focus it on the first press.
+    private void OnFind(object sender, ExecutedRoutedEventArgs e) => _editor?.OpenSearch();
 
     // ---- Window lifecycle: frame + session restore/save, external-change ----
 

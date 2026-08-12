@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using CodeCrack.App.Core.Editor;
 using ICSharpCode.AvalonEdit;
 using ICSharpCode.AvalonEdit.Document;
+using ICSharpCode.AvalonEdit.Search;
 using TextMateSharp.Grammars;
 
 namespace CodeCrackApp.Editor;
@@ -11,6 +12,7 @@ public partial class CodeEditorControl : UserControl, IEditorHost
 {
     private readonly RegistryOptions _registryOptions;
     private readonly TextMateInstallation _textMate;
+    private readonly SearchPanel _searchPanel;
     private bool _suppressTextChanged;
 
     public CodeEditorControl()
@@ -18,7 +20,18 @@ public partial class CodeEditorControl : UserControl, IEditorHost
         InitializeComponent();
         _registryOptions = new RegistryOptions(ThemeName.DarkPlus);
         _textMate = Editor.InstallTextMate(_registryOptions);
+        _searchPanel = SearchPanel.Install(Editor);   // in-file find bar (Ctrl+F)
         Editor.TextChanged += (_, _) => { if (!_suppressTextChanged) TextChanged?.Invoke(this, EventArgs.Empty); };
+    }
+
+    /// <summary>Open AvalonEdit's in-file find bar and focus its input on the FIRST press,
+    /// prefilling the query from the current selection. Wired to the shell's Ctrl+F command.</summary>
+    public void OpenSearch()
+    {
+        if (Editor.SelectionLength > 0)
+            _searchPanel.SearchPattern = Editor.SelectedText;
+        _searchPanel.Open();
+        _searchPanel.Reactivate();   // shows the panel and focuses/selects the search box
     }
 
     public event EventHandler? TextChanged;

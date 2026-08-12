@@ -10,11 +10,13 @@
         LocationChanged="OnLocationChanged" SizeChanged="OnWindowSizeChanged">
     <Window.CommandBindings>
         <CommandBinding Command="Open"   Executed="OnOpen"/>
+        <CommandBinding Command="{x:Static local:Commands.OpenFolder}" Executed="OnOpenFolder"/>
         <CommandBinding Command="New"    Executed="OnNew"/>
         <CommandBinding Command="Save"   Executed="OnSave"     CanExecute="OnCanSave"/>
         <CommandBinding Command="SaveAs" Executed="OnSaveAs"   CanExecute="OnCanSave"/>
         <CommandBinding Command="Close"  Executed="OnCloseTab" CanExecute="OnCanSave"/>
         <CommandBinding Command="Find"   Executed="OnFind"/>
+        <CommandBinding Command="{x:Static local:Commands.FindInFiles}" Executed="OnFindInFiles"/>
         <CommandBinding Command="{x:Static local:Commands.Run}"     Executed="OnRun"     CanExecute="OnCanRun"/>
         <CommandBinding Command="{x:Static local:Commands.Analyze}" Executed="OnAnalyze" CanExecute="OnCanAnalyze"/>
         <CommandBinding Command="{x:Static local:Commands.CancelAnalyze}" Executed="OnCancelAnalyze" CanExecute="OnCanCancelAnalyze"/>
@@ -22,7 +24,9 @@
     </Window.CommandBindings>
     <Window.InputBindings>
         <KeyBinding Key="O" Modifiers="Ctrl"       Command="Open"/>
+        <KeyBinding Key="O" Modifiers="Ctrl+Shift" Command="{x:Static local:Commands.OpenFolder}"/>
         <KeyBinding Key="N" Modifiers="Ctrl"       Command="New"/>
+        <KeyBinding Key="F" Modifiers="Ctrl+Shift" Command="{x:Static local:Commands.FindInFiles}"/>
         <KeyBinding Key="S" Modifiers="Ctrl"       Command="Save"/>
         <KeyBinding Key="S" Modifiers="Ctrl+Shift" Command="SaveAs"/>
         <KeyBinding Key="W" Modifiers="Ctrl"       Command="Close"/>
@@ -35,6 +39,8 @@
         <Menu DockPanel.Dock="Top">
             <MenuItem Header="_File">
                 <MenuItem Header="_Open…"     Command="Open"/>
+                <MenuItem Header="Open _Folder…" Command="{x:Static local:Commands.OpenFolder}"
+                          InputGestureText="Ctrl+Shift+O"/>
                 <MenuItem Header="_New"       Command="New"/>
                 <MenuItem x:Name="OpenRecentMenu" Header="Open _Recent"/>
                 <Separator/>
@@ -44,6 +50,8 @@
             </MenuItem>
             <MenuItem Header="_Edit">
                 <MenuItem Header="_Find…"     Command="Find"/>
+                <MenuItem Header="Find in Files…" Command="{x:Static local:Commands.FindInFiles}"
+                          InputGestureText="Ctrl+Shift+F"/>
                 <Separator/>
                 <MenuItem Header="_Preferences…" Command="{x:Static local:Commands.Preferences}"
                           InputGestureText="Ctrl+,"/>
@@ -115,6 +123,7 @@
                     <TabItem Header="Issues"><ContentControl x:Name="IssuesHost"/></TabItem>
                     <TabItem Header="Tests"><ContentControl x:Name="TestsHost"/></TabItem>
                     <TabItem Header="Console"><ContentControl x:Name="ConsoleHost"/></TabItem>
+                    <TabItem x:Name="SearchTab" Header="Search"><ContentControl x:Name="SearchHost"/></TabItem>
                 </TabControl>
             </Grid>
         </Grid>
