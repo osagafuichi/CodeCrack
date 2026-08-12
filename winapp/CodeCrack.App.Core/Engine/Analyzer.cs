@@ -5,9 +5,10 @@ using CodeCrack.App.Core.Settings;
 
 namespace CodeCrack.App.Core.Engine;
 
-public sealed class Analyzer(IAppSettings settings) : IAnalyzer
+public sealed class Analyzer(IAppSettings settings, IProcessConfiner? confiner = null) : IAnalyzer
 {
     private readonly IAppSettings _settings = settings;
+    private readonly IProcessConfiner _confiner = confiner ?? NullProcessConfiner.Instance;
 
     public async Task<EngineOutcome> AnalyzeAsync(string filePath, CancellationToken ct = default)
     {
@@ -48,6 +49,11 @@ public sealed class Analyzer(IAppSettings settings) : IAnalyzer
         {
             return new EngineOutcome(null, new LaunchFailed(ex.Message));
         }
+
+        // Confine the untrusted engine child (+ the pytest it spawns) to a memory/process
+        // cap; disposing at method end reaps the whole tree — including on cancel/timeout,
+        // so a runaway analysis can't leave survivors. No-op off Windows.
+        using var confinement = _confiner.Confine(process);
 
         // Buffer stdout (the JSON) and stderr separately to avoid interleave/deadlock.
         var stdoutTask = process.StandardOutput.ReadToEndAsync(ct);

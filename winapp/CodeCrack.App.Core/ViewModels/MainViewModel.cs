@@ -239,9 +239,10 @@ public sealed class MainViewModel : ObservableObject
 
     private IRunSession? _session;
 
-    /// Injection seam for tests; defaults to the real process Runner.
+    /// Injection seam for tests; defaults to the real process Runner (unconfined —
+    /// AppServices overrides this with a confiner-passing factory for the real app).
     public Func<RunCommand, Action<string>, Action<int>, IRunSession?> RunnerFactory { get; set; }
-        = Runner.Start;
+        = (cmd, onOut, onFin) => Runner.Start(cmd, onOut, onFin);
 
     public string Run()
     {

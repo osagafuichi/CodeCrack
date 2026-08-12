@@ -15,7 +15,12 @@ public interface IRunSession
 public sealed class RunSession : IRunSession
 {
     private readonly Process _process;
-    internal RunSession(Process process) => _process = process;
+    private readonly IDisposable _confinement;
+    internal RunSession(Process process, IDisposable confinement)
+    {
+        _process = process;
+        _confinement = confinement;
+    }
 
     public void Send(string text)
     {
@@ -31,6 +36,8 @@ public sealed class RunSession : IRunSession
     {
         try { if (!_process.HasExited) _process.Kill(entireProcessTree: true); }
         catch { /* already gone */ }
+        // Reap any detached survivors via the job's kill-on-close (idempotent with the waiter).
+        try { _confinement.Dispose(); } catch { /* best effort */ }
     }
 }
 
@@ -41,7 +48,8 @@ public static class Runner
 {
     public static IRunSession? Start(RunCommand command,
                                      Action<string> onOutput,
-                                     Action<int> onFinish)
+                                     Action<int> onFinish,
+                                     IProcessConfiner? confiner = null)
     {
         var sync = SynchronizationContext.Current;
         void Post(Action a) { if (sync is null) a(); else sync.Post(_ => a(), null); }
@@ -71,6 +79,10 @@ public static class Runner
             return null;
         }
 
+        // Confine the untrusted user program (+ its children) to a memory/process cap.
+        // No-op off Windows; degrades gracefully if the job can't be created.
+        var confinement = (confiner ?? NullProcessConfiner.Instance).Confine(process);
+
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
 
@@ -86,11 +98,12 @@ public static class Runner
             try { process.WaitForExit(); } catch { /* process already reaped */ }
             int code;
             try { code = process.ExitCode; } catch { code = -1; }
+            try { confinement.Dispose(); } catch { /* best effort */ }
             Post(() => onFinish(code));
         })
         { IsBackground = true, Name = "codecrack-runner-waiter" };
         waiter.Start();
 
-        return new RunSession(process);
+        return new RunSession(process, confinement);
     }
 }

@@ -35,7 +35,12 @@ public sealed class AppServices
         Settings = new JsonAppSettings(Path.Combine(dataDir, "settings.json"));
         Status = new StatusBus();
         Io = new FileIO();
-        Analyzer = new Analyzer(Settings);
+
+        // Confine every untrusted child (the analyze subprocess + its pytest, and the
+        // file Runner) in a Win32 Job Object: memory cap, process cap, kill-on-close.
+        // No-op off Windows; both the Analyzer and the Runner factory share it.
+        var confiner = new JobObjectProcessConfiner();
+        Analyzer = new Analyzer(Settings, confiner);
 
         Store = new JsonKeyValueStore(Path.Combine(dataDir, "session.json"));
         Session = new SessionStore(Store);
@@ -43,6 +48,7 @@ public sealed class AppServices
         ExternalChange = new ExternalChangeWatcher(new DiskFileProbe(), Status);
 
         Main = new MainViewModel(Analyzer, Settings, Status, Io);
+        Main.RunnerFactory = (cmd, onOut, onFin) => Runner.Start(cmd, onOut, onFin, confiner);
     }
 
     /// The per-user data directory, %APPDATA%\CodeCrack.
