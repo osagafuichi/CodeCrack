@@ -49,7 +49,9 @@ public sealed class MainViewModel : ObservableObject
         get => _active;
         set
         {
-            if (!Set(ref _active, value)) return;
+            if (ReferenceEquals(_active, value)) return;
+            Editor.SyncFromHost();          // persist the outgoing doc's buffer before switching tabs
+            Set(ref _active, value);
             Editor.Document = value;
             Raise(nameof(CanSave));
             Raise(nameof(CanRun));

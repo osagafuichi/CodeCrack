@@ -28,6 +28,7 @@ public sealed class EditorViewModel : ObservableObject
     public void SyncFromHost()
     {
         if (Host is null || _document is null) return;
+        if (Host.Text != _document.Text) _document.IsDirty = true;
         _document.Text = Host.Text;
         _document.CaretOffset = Host.CaretOffset;
     }
