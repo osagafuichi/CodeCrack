@@ -10,8 +10,22 @@ public sealed class IssuesViewModel : ObservableObject
 {
     public ObservableCollection<Finding> Findings { get; } = new();
 
+    private bool _hasAnalyzed;
+
     private string? _errorMessage;
-    public string? ErrorMessage { get => _errorMessage; set => Set(ref _errorMessage, value); }
+    public string? ErrorMessage
+    {
+        get => _errorMessage;
+        set { if (Set(ref _errorMessage, value)) Raise(nameof(ShowEmptyState)); }
+    }
+
+    /// True when there are no findings to list and no error banner: the panel would otherwise
+    /// be a confusing blank, so the view shows <see cref="EmptyStateMessage"/> instead.
+    public bool ShowEmptyState => Findings.Count == 0 && string.IsNullOrEmpty(_errorMessage);
+
+    /// Friendly placeholder: guidance before the first analyze, reassurance after a clean one.
+    public string EmptyStateMessage =>
+        _hasAnalyzed ? "No issues found." : "Run Analyze to find issues.";
 
     /// Raised when a finding row is activated; MainViewModel maps it to editor RevealLine.
     public event Action<int>? LineActivated;
@@ -27,9 +41,12 @@ public sealed class IssuesViewModel : ObservableObject
 
     public void SetFindings(IEnumerable<Finding> findings)
     {
+        _hasAnalyzed = true;
         Findings.Clear();
         foreach (var f in findings.OrderBy(f => SeverityRank(f.Severity)))
             Findings.Add(f);
+        Raise(nameof(ShowEmptyState));
+        Raise(nameof(EmptyStateMessage));
     }
 
     public void Activate(Finding finding) => LineActivated?.Invoke(finding.Line);

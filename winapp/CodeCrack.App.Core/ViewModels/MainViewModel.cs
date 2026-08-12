@@ -83,6 +83,11 @@ public sealed class MainViewModel : ObservableObject
 
     public bool ShowIssues { get; private set; }
 
+    /// Which results panel the shell should surface once results are ready. The view subscribes
+    /// and selects the matching bottom tab so results/output are visible without hunting.
+    public event Action<ResultsPanel>? RevealResultsRequested;
+    private void RequestReveal(ResultsPanel panel) => RevealResultsRequested?.Invoke(panel);
+
     public bool CanSave => Active is not null;
     public bool CanRun => Active is not null && !IsRunning;
     public bool CanAnalyze => Active is not null && !IsAnalyzing && IsPython;
@@ -142,10 +147,17 @@ public sealed class MainViewModel : ObservableObject
         return doc;
     }
 
-    /// Creates a fresh untitled buffer and makes it active.
+    /// Creates a fresh untitled buffer (with a stable "Untitled"/"Untitled N" title) and makes it active.
     public OpenDocument NewDocument()
     {
-        var doc = new OpenDocument { Path = string.Empty, Text = string.Empty, IsDirty = false };
+        var used = Documents.Where(d => string.IsNullOrEmpty(d.Path)).Select(d => d.UntitledNumber);
+        var doc = new OpenDocument
+        {
+            Path = string.Empty,
+            Text = string.Empty,
+            IsDirty = false,
+            UntitledNumber = OpenDocument.NextUntitledNumber(used),
+        };
         Documents.Add(doc);
         Active = doc;
         return doc;
@@ -222,6 +234,7 @@ public sealed class MainViewModel : ObservableObject
         {
             _analyzeCts = null;
             IsAnalyzing = false;
+            RequestReveal(ResultsPanel.Issues);   // surface results/errors without hunting
         }
     }
 
@@ -249,6 +262,7 @@ public sealed class MainViewModel : ObservableObject
         if (Active is null) return "";
         Save(); // run reads from disk
         ShowConsole = true;
+        RequestReveal(ResultsPanel.Console);   // bring the console forward for the output
 
         var cmd = RunCommandTable.For(Active.Path);
         if (cmd is null)

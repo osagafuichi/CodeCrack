@@ -9,6 +9,16 @@ public sealed class TestsViewModel : ObservableObject
 {
     public ObservableCollection<GeneratedTest> Tests { get; } = new();
 
+    private bool _hasAnalyzed;
+
+    /// True when there are no generated tests to list: the view shows <see cref="EmptyStateMessage"/>
+    /// instead of a blank list.
+    public bool ShowEmptyState => Tests.Count == 0;
+
+    /// Friendly placeholder: a call to action before the first analyze, a plain result after one.
+    public string EmptyStateMessage =>
+        _hasAnalyzed ? "No tests generated." : "Run Analyze to generate tests.";
+
     private Summary? _summary;
     public Summary? Summary
     {
@@ -43,9 +53,12 @@ public sealed class TestsViewModel : ObservableObject
 
     public void SetResult(IReadOnlyList<GeneratedTest> tests, Summary? summary)
     {
+        _hasAnalyzed = true;
         Tests.Clear();
         foreach (var t in tests) Tests.Add(t);
         Summary = summary;
+        Raise(nameof(ShowEmptyState));
+        Raise(nameof(EmptyStateMessage));
     }
 
     public void JumpToFinding(GeneratedTest test) => FindingActivated?.Invoke(test.FindingId);
