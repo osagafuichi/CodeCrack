@@ -128,6 +128,10 @@ jobs:
           CODECRACK_WINDOWS_CERT_PASSWORD: ${{ secrets.CODECRACK_WINDOWS_CERT_PASSWORD }}
         run: ./make-app.ps1
 
+      - name: Verify bundle contents (notices present, no *.pdb)
+        shell: pwsh
+        run: Invoke-Pester -Path winapp\tests\dist-contents.Tests.ps1 -Output Detailed -CI
+
       - name: Package dist\CodeCrack as a zip
         shell: pwsh
         run: Compress-Archive -Path dist\CodeCrack\* -DestinationPath CodeCrack-windows.zip -Force
