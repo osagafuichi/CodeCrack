@@ -1,57 +1,134 @@
-# CodeCrack for Windows (`winapp/`)
+# CodeCrack for Windows
 
-Native Windows IDE (WPF + AvalonEdit, .NET 8, C#) that drives the shared Python
-engine in `../engine/`. Self-contained: the shipped build bundles the engine and an
-embedded CPython (with pytest), so end users need no system Python.
+**Debug and test your Python code, faster.** CodeCrack reads a file, finds suspected
+bugs, **automatically generates tests, runs them in a sandbox, and proves the bug** by
+reproducing the failure — all in a native Windows IDE.
 
-## Prerequisites
+It's **self-contained**: the download bundles the analysis engine *and* an embedded
+Python runtime (with pytest), so it runs on a stock Windows PC with **no .NET and no
+Python installed**.
 
-- Windows 10/11 x64.
-- .NET 8 SDK (pinned via `global.json`). Install: `winget install Microsoft.DotNet.SDK.8`.
-- PowerShell 7+ (`pwsh`) for the build scripts. `tar` (bsdtar) ships with Windows 10+.
+> **Early build.** This is a functional, CI-tested preview, not a hardened 1.0. It is
+> **unsigned** (so Windows SmartScreen will warn on first launch — see below) and runs
+> analyzed code with **time-limited isolation only**. Analyze code you trust; don't
+> point it at files from untrusted sources yet. See [Known limitations](#known-limitations).
 
-## Build & run (development)
+---
+
+## Download & run
+
+1. **Download** `CodeCrack-windows.zip` from the
+   [**Releases**](https://github.com/osagafuichi/CodeCrack/releases) page.
+   *(No release yet? Grab it from the latest green
+   [Actions run](https://github.com/osagafuichi/CodeCrack/actions) → the `CodeCrack-windows`
+   artifact — you need to be signed into GitHub.)*
+2. **Unzip** it anywhere (e.g. `C:\Users\<you>\CodeCrack`). Keep the folder together —
+   `CodeCrack.exe`, `python\`, and `Resources\engine\` must stay side by side.
+3. **Run** `CodeCrack.exe`.
+
+### First launch: SmartScreen
+Because the app isn't code-signed yet, Windows shows **"Windows protected your PC"**.
+Click **More info → Run anyway**. (This is expected for unsigned apps; a signed build is
+on the roadmap.) The first launch is also a little slower while Windows Defender scans
+the ~170 MB executable — subsequent launches are fast.
+
+### Requirements
+- Windows 10 or 11, 64-bit (x64).
+- Nothing else — the .NET runtime and Python are bundled.
+
+---
+
+## How to use
+
+1. **Open a Python file** — `Ctrl+O` (or use the file tree on the left).
+2. **Analyze** — press **`Ctrl+B`** (or **Run ▸ Analyze**). CodeCrack finds suspected
+   bugs, generates tests, runs them, and shows results.
+3. **Read the results** in the bottom panels:
+   - **Issues** — each suspected bug; click to jump to the line.
+   - **Tests** — the generated tests, with a **"BUG PROVEN"** badge where a test
+     reproduced a real failure, and *"N tests reproduce a real failure"* in the header.
+4. **Run the file** — `Ctrl+R` streams its output to the **Console** tab.
+
+Try it on the bundled samples if you have the source checkout — e.g.
+`engine\tests\fixtures\zero_division.py` gives a guaranteed proven bug.
+
+### Keyboard shortcuts
+| Action | Key |
+| --- | --- |
+| Open file | `Ctrl+O` |
+| New file | `Ctrl+N` |
+| Save / Save As | `Ctrl+S` / `Ctrl+Shift+S` |
+| Close tab | `Ctrl+W` |
+| **Analyze** | `Ctrl+B` |
+| Run file | `Ctrl+R` |
+| Preferences | `Ctrl+,` |
+
+---
+
+## What's in the download
+
+```
+CodeCrack.exe                     self-contained Windows app (WPF, .NET 8)
+python\python.exe                 embedded CPython 3.12 with pytest
+Resources\engine\codecrack\...    the analysis engine (+ pyproject.toml)
+```
+
+Settings and your last session are stored under `%APPDATA%\CodeCrack\`.
+
+---
+
+## Troubleshooting
+
+- **"Analysis failed"** — make sure you're running the **packaged** `CodeCrack.exe` (not
+  a `dotnet run` dev build). The packaged app carries the engine + Python beside it and
+  works on any saved `.py` file. Also confirm the file is **saved to disk** (Analyze reads
+  from disk and is only enabled for `.py`).
+- **SmartScreen won't let it run** — click **More info → Run anyway** (unsigned build).
+- **First launch is slow** — Defender is scanning the bundled runtime once; it's quick
+  afterward.
+- **Nothing happens after Analyze** — click the **Issues**/**Tests** tab in the bottom
+  panel (it doesn't auto-focus yet — see below).
+
+## Known limitations
+
+This is an early build; these are the rough edges to expect:
+- **Unsigned** → SmartScreen warning on first run.
+- **Sandbox is time-limited only on Windows** — analyzed code runs with a wall-clock
+  timeout but no memory/network/filesystem cap. **Only analyze code you trust.**
+- Some UI polish is still pending: **`Ctrl+F`** just focuses the editor (no find bar yet),
+  there's **no project-search or theme-picker UI**, the indentation preference isn't
+  applied to the editor, results panels don't auto-focus after Analyze/Run, and a new
+  (untitled) tab shows a blank title.
+
+## Uninstall
+
+Delete the unzipped folder and, if you want to remove your settings, the
+`%APPDATA%\CodeCrack\` directory. Nothing is written to the registry or Program Files.
+
+---
+
+## Build from source (developers)
+
+Prerequisites: Windows 10/11 x64, **.NET 8 SDK** (`winget install Microsoft.DotNet.SDK.8`),
+and PowerShell 7+ (`pwsh`). `tar` ships with Windows 10+.
 
 ```powershell
+# Dev build + run (uses your source checkout's engine; falls back to py -3 on PATH)
 dotnet build winapp\CodeCrack.sln -c Debug
 dotnet run --project winapp\CodeCrackApp\CodeCrackApp.csproj
-```
 
-In dev, the engine is discovered from the source checkout and Python falls back to
-`py -3` / `python` on PATH (see `PythonInvocation`).
-
-## Tests
-
-```powershell
-# C# unit + integration tests (xUnit)
+# Tests
 dotnet test winapp\CodeCrack.sln
-# PowerShell packaging/CI tests (Pester 5)
 pwsh -NoProfile -Command "Invoke-Pester -Path scripts\tests, winapp\tests -Output Detailed"
-```
 
-## Package a distributable
-
-```powershell
-# Publishes self-contained/single-file, bundles engine + embedded CPython/pytest,
-# and writes dist\CodeCrack\. Set CODECRACK_SKIP_LAUNCH=1 to skip auto-launch.
+# Package the self-contained distributable -> dist\CodeCrack\
 $env:CODECRACK_SKIP_LAUNCH = "1"
 pwsh -NoProfile -File winapp\make-app.ps1
 ```
 
-Output tree:
-
-```
-dist\CodeCrack\
-  CodeCrack.exe                     # self-contained single-file WPF app
-  Resources\engine\codecrack\...    # bundled Python engine (+ pyproject.toml)
-  python\python.exe                 # embedded CPython 3.12 with pytest
-```
-
-Run the packaged app by double-clicking `dist\CodeCrack\CodeCrack.exe`.
-
-### Optional code signing
-
-`make-app.ps1` signs `CodeCrack.exe` only when `CODECRACK_WINDOWS_CERT` points at a
+`make-app.ps1` publishes the WPF app self-contained/single-file, bundles the engine and
+an embedded CPython (with pytest via `scripts\fetch-python-runtime.ps1`), and writes
+`dist\CodeCrack\`. It signs `CodeCrack.exe` only when `CODECRACK_WINDOWS_CERT` points at a
 `.pfx` (with `CODECRACK_WINDOWS_CERT_PASSWORD`); otherwise signing is skipped. CI
-(`.github/workflows/ci.yml`, job `windows-build`) runs the same script headless and
-uploads `CodeCrack-windows.zip`.
+(`.github/workflows/ci.yml`, job `windows-build`) runs the same script headless and, once
+its tests are green, uploads `CodeCrack-windows.zip`.
