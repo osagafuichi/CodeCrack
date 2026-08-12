@@ -115,10 +115,27 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
+      # Only when Azure Trusted Signing is configured (secret present): restore the
+      # Trusted Signing client so make-app.ps1 can find Azure.CodeSigning.Dlib.dll.
+      # Skipped otherwise -> no effect on normal CI runs / forks / PRs.
+      - name: Prepare Azure Trusted Signing client
+        if: ${{ secrets.CODECRACK_AZURE_ENDPOINT != '' }}
+        shell: pwsh
+        run: |
+          $dir = New-Item -ItemType Directory -Path "$env:RUNNER_TEMP\tsclient" -Force
+          @'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup>
+            <ItemGroup><PackageReference Include="Microsoft.Trusted.Signing.Client" Version="1.0.60" /></ItemGroup>
+          </Project>
+          '@ | Set-Content -Path "$dir\tsclient.csproj" -Encoding utf8
+          dotnet restore "$dir\tsclient.csproj"
+
       # Publishes the WPF app self-contained/single-file, bundles the engine and an
       # embedded CPython/pytest (scripts/fetch-python-runtime.ps1), and produces
-      # dist\CodeCrack\. CODECRACK_SKIP_LAUNCH keeps it headless. Signing is guarded
-      # and skips gracefully when the secret is absent (e.g. forks / PRs).
+      # dist\CodeCrack\. CODECRACK_SKIP_LAUNCH keeps it headless. Signing is fully
+      # credential-guarded (PFX or Azure Trusted Signing) and skips gracefully when
+      # the secrets are absent (e.g. forks / PRs). See docs/SIGNING.md.
       - name: Build the Windows app bundle
         working-directory: winapp
         shell: pwsh
@@ -126,6 +143,12 @@ jobs:
           CODECRACK_SKIP_LAUNCH: "1"
           CODECRACK_WINDOWS_CERT: ${{ secrets.CODECRACK_WINDOWS_CERT }}
           CODECRACK_WINDOWS_CERT_PASSWORD: ${{ secrets.CODECRACK_WINDOWS_CERT_PASSWORD }}
+          CODECRACK_AZURE_ENDPOINT: ${{ secrets.CODECRACK_AZURE_ENDPOINT }}
+          CODECRACK_AZURE_ACCOUNT: ${{ secrets.CODECRACK_AZURE_ACCOUNT }}
+          CODECRACK_AZURE_CERT_PROFILE: ${{ secrets.CODECRACK_AZURE_CERT_PROFILE }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
         run: ./make-app.ps1
 
       - name: Verify bundle contents (notices present, no *.pdb)

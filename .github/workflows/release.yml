@@ -34,7 +34,37 @@ jobs:
       - name: Engine tests (Windows)
         run: python -m pip install --upgrade pip && pip install -e "./engine[dev]" && pytest engine/tests -q
 
+      # Stamp the exe's version from the release tag: v1.2.3 -> 1.2.3 (a hyphenated
+      # tag like v1.2.3-rc1 stays a full prerelease version; make-app.ps1 derives the
+      # numeric file version). Exposed to later steps via $GITHUB_ENV.
+      - name: Resolve version from tag
+        shell: pwsh
+        run: |
+          $v = "${{ github.ref_name }}" -replace '^v', ''
+          "CODECRACK_VERSION=$v" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "CODECRACK_VERSION=$v"
+
+      # Only when Azure Trusted Signing is configured (secret present): restore the
+      # Trusted Signing client so make-app.ps1 can find Azure.CodeSigning.Dlib.dll in
+      # the NuGet cache. Skipped entirely otherwise -> zero effect on normal releases.
+      - name: Prepare Azure Trusted Signing client
+        if: ${{ secrets.CODECRACK_AZURE_ENDPOINT != '' }}
+        shell: pwsh
+        run: |
+          $dir = New-Item -ItemType Directory -Path "$env:RUNNER_TEMP\tsclient" -Force
+          @'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup>
+            <ItemGroup><PackageReference Include="Microsoft.Trusted.Signing.Client" Version="1.0.60" /></ItemGroup>
+          </Project>
+          '@ | Set-Content -Path "$dir\tsclient.csproj" -Encoding utf8
+          dotnet restore "$dir\tsclient.csproj"
+
       # --- Build the self-contained bundle (engine + embedded CPython + notices) ---
+      # Signing is credential-guarded: no secrets -> unsigned build still succeeds.
+      # PFX (CODECRACK_WINDOWS_CERT/_PASSWORD) or Azure Trusted Signing
+      # (CODECRACK_AZURE_* + the ambient Azure credential) both sign automatically
+      # once their secrets are set. See docs/SIGNING.md.
       - name: Build the Windows app bundle
         working-directory: winapp
         shell: pwsh
@@ -42,6 +72,12 @@ jobs:
           CODECRACK_SKIP_LAUNCH: "1"
           CODECRACK_WINDOWS_CERT: ${{ secrets.CODECRACK_WINDOWS_CERT }}
           CODECRACK_WINDOWS_CERT_PASSWORD: ${{ secrets.CODECRACK_WINDOWS_CERT_PASSWORD }}
+          CODECRACK_AZURE_ENDPOINT: ${{ secrets.CODECRACK_AZURE_ENDPOINT }}
+          CODECRACK_AZURE_ACCOUNT: ${{ secrets.CODECRACK_AZURE_ACCOUNT }}
+          CODECRACK_AZURE_CERT_PROFILE: ${{ secrets.CODECRACK_AZURE_CERT_PROFILE }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
         run: ./make-app.ps1
 
       - name: Verify bundle contents
