@@ -2,3 +2,7 @@
 # with `git diff --exit-code`. Pin it to LF so a CRLF checkout on the Windows
 # runner can't make the cross-platform drift gate flap.
 engine/tests/golden/analysis_result.json text eol=lf
+
+# The app icon is a binary .ico (multi-resolution). Never let EOL normalization
+# touch it, or the embedded PNG/BMP frames get corrupted on a CRLF checkout.
+*.ico binary

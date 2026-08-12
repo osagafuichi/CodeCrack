@@ -5,7 +5,14 @@
     <UseWPF>true</UseWPF>
     <PlatformTarget>x64</PlatformTarget>
     <AssemblyName>CodeCrack</AssemblyName>
+    <!-- Stamps the exe's shell icon (Explorer, taskbar pin, alt-tab). -->
+    <ApplicationIcon>Assets\CodeCrack.ico</ApplicationIcon>
   </PropertyGroup>
+  <!-- Embed the .ico as a WPF resource too, so MainWindow can set it as the live
+       window Icon (title bar) via a pack URI, even in the single-file publish. -->
+  <ItemGroup>
+    <Resource Include="Assets\CodeCrack.ico" />
+  </ItemGroup>
   <!-- Ship no debug symbols in the distributable (bundle size + no symbol leak);
        Debug builds keep symbols. make-app.ps1 also prunes any stray *.pdb. -->
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">

@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:CodeCrackApp"
         Title="CodeCrack" Height="720" Width="1100"
+        Icon="pack://application:,,,/Assets/CodeCrack.ico"
         SourceInitialized="OnWindowSourceInitialized"
         Activated="OnWindowActivated"
         LocationChanged="OnLocationChanged" SizeChanged="OnWindowSizeChanged">
