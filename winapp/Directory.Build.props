@@ -7,4 +7,20 @@
     <Deterministic>true</Deterministic>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
+
+  <!-- Product identity + versionable exe metadata (populates the exe's Details tab:
+       File/Product version, Company, Product, Copyright). Default 1.0.0; CI overrides
+       with the release tag via /p:Version=1.2.3 (see .github/workflows/release.yml).
+       AssemblyVersion/FileVersion take the numeric core so a prerelease tag like
+       1.2.3-rc1 (valid for Version/ProductVersion) still yields a numeric file version. -->
+  <PropertyGroup Label="Product identity">
+    <Version Condition="'$(Version)' == ''">1.0.0</Version>
+    <_VersionCore>$([System.Text.RegularExpressions.Regex]::Replace('$(Version)', '[-+].*$', ''))</_VersionCore>
+    <AssemblyVersion Condition="'$(AssemblyVersion)' == ''">$(_VersionCore)</AssemblyVersion>
+    <FileVersion Condition="'$(FileVersion)' == ''">$(_VersionCore)</FileVersion>
+    <Company>CodeCrack</Company>
+    <Product>CodeCrack</Product>
+    <Authors>CodeCrack</Authors>
+    <Copyright>Copyright &#169; 2026 CodeCrack</Copyright>
+  </PropertyGroup>
 </Project>
