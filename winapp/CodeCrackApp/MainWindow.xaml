@@ -59,14 +59,48 @@
                           Background="Transparent" ShowsPreview="False"/>
             <Grid Grid.Column="2">
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="240" MinHeight="0"/>
                 </Grid.RowDefinitions>
-                <ContentControl x:Name="EditorHostSurface" Grid.Row="0"/>
-                <GridSplitter Grid.Row="1" Height="4" HorizontalAlignment="Stretch"
+                <!-- Tab strip: headers only; the editor below is a single reused control. -->
+                <ListBox x:Name="TabStrip" Grid.Row="0" BorderThickness="0" Padding="0"
+                         ItemsSource="{Binding Documents}"
+                         SelectedItem="{Binding Active, Mode=TwoWay}"
+                         ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                         ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" Margin="2,0">
+                                <TextBlock Text="&#9679;" Margin="0,0,4,0" VerticalAlignment="Center"
+                                           Foreground="#C060A0FF">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsDirty}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                                <Button Content="&#10005;" Margin="6,0,0,0" Padding="3,0" FontSize="10"
+                                        Background="Transparent" BorderThickness="0" Cursor="Hand"
+                                        ToolTip="Close Tab" Tag="{Binding}" Click="OnTabClose"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <ContentControl x:Name="EditorHostSurface" Grid.Row="1"/>
+                <GridSplitter Grid.Row="2" Height="4" HorizontalAlignment="Stretch"
                               Background="#22000000" ShowsPreview="False"/>
-                <TabControl Grid.Row="2">
+                <TabControl Grid.Row="3">
                     <TabItem Header="Issues"><ContentControl x:Name="IssuesHost"/></TabItem>
                     <TabItem Header="Tests"><ContentControl x:Name="TestsHost"/></TabItem>
                     <TabItem Header="Console"><ContentControl x:Name="ConsoleHost"/></TabItem>

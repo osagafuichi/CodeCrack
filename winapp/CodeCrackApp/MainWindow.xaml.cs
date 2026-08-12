@@ -161,6 +161,18 @@ public partial class MainWindow : Window
         PersistSession();
     }
 
+    /// Close button on a tab-strip header: select that doc, then close it (close-neighbor rule).
+    private void OnTabClose(object sender, RoutedEventArgs e)
+    {
+        if (Vm is null) return;
+        if ((sender as FrameworkElement)?.Tag is OpenDocument doc)
+        {
+            Vm.Active = doc;
+            Vm.CloseActive();
+            PersistSession();
+        }
+    }
+
     private void OnRun(object sender, ExecutedRoutedEventArgs e) => Vm?.Run();
     private void OnAnalyze(object sender, ExecutedRoutedEventArgs e) => Vm?.Analyze();
     // Ctrl+F: AvalonEdit's SearchInputHandler (installed by CodeEditorControl) opens the
