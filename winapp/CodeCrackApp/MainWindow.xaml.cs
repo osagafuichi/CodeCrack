@@ -25,6 +25,8 @@ public static class Commands
         new("Analyze", nameof(Analyze), typeof(Commands));
     public static readonly RoutedUICommand Preferences =
         new("Preferences", nameof(Preferences), typeof(Commands));
+    public static readonly RoutedUICommand CancelAnalyze =
+        new("Cancel Analyze", nameof(CancelAnalyze), typeof(Commands));
 }
 
 public partial class MainWindow : Window
@@ -178,6 +180,10 @@ public partial class MainWindow : Window
 
     private void OnRun(object sender, ExecutedRoutedEventArgs e) => Vm?.Run();
     private void OnAnalyze(object sender, ExecutedRoutedEventArgs e) => Vm?.Analyze();
+
+    private void OnCanCancelAnalyze(object sender, CanExecuteRoutedEventArgs e) =>
+        e.CanExecute = Vm is not null && Vm.CanCancelAnalyze;
+    private void OnCancelAnalyze(object sender, ExecutedRoutedEventArgs e) => Vm?.CancelAnalyze();
 
     /// Edit ▸ Preferences… (Ctrl+,): open the modal Settings window, then re-apply theme + font.
     private void OnPreferences(object sender, ExecutedRoutedEventArgs e)

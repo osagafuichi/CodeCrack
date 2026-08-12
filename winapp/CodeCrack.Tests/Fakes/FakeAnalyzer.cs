@@ -17,6 +17,8 @@ public sealed class FakeAnalyzer : IAnalyzer
     public Task<EngineOutcome> AnalyzeAsync(string filePath, CancellationToken ct = default)
     {
         LastPath = filePath;
-        return Gate?.Task ?? Task.FromResult(Next);
+        // Honor cancellation while gated so timeout/cancel paths are testable; an
+        // ungated call resolves immediately with Next.
+        return Gate is null ? Task.FromResult(Next) : Gate.Task.WaitAsync(ct);
     }
 }

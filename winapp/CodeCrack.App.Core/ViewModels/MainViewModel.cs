@@ -63,8 +63,23 @@ public sealed class MainViewModel : ObservableObject
     public bool IsAnalyzing
     {
         get => _isAnalyzing;
-        private set { if (Set(ref _isAnalyzing, value)) Raise(nameof(CanAnalyze)); }
+        private set
+        {
+            if (Set(ref _isAnalyzing, value))
+            {
+                Raise(nameof(CanAnalyze));
+                Raise(nameof(CanCancelAnalyze));
+            }
+        }
     }
+
+    /// Hard ceiling on a single analyze so a hung interpreter/generation can't wedge the UI.
+    public TimeSpan AnalyzeTimeout { get; set; } = TimeSpan.FromSeconds(60);
+    private CancellationTokenSource? _analyzeCts;
+    public bool CanCancelAnalyze => IsAnalyzing;
+
+    /// Cancel the in-flight analyze (a Cancel affordance, or a re-Analyze).
+    public void CancelAnalyze() => _analyzeCts?.Cancel();
 
     public bool ShowIssues { get; private set; }
 
@@ -164,28 +179,49 @@ public sealed class MainViewModel : ObservableObject
         if (Active is null) return;
         Save(); // engine reads from disk
         var name = Active.Name;
+        var path = Active.Path;   // capture: the active tab may change during the await
         ShowIssues = true;
         Issues.ErrorMessage = null;
         IsAnalyzing = true;
         _status.Set($"Analyzing {name}…");
 
-        var outcome = await _analyzer.AnalyzeAsync(Active.Path, ct).ConfigureAwait(true);
-
-        IsAnalyzing = false;
-        if (outcome.IsSuccess && outcome.Result is not null)
+        using var timeout = new CancellationTokenSource(AnalyzeTimeout);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token);
+        _analyzeCts = linked;
+        try
         {
-            Issues.SetFindings(outcome.Result.Findings);
-            Tests.SetResult(outcome.Result.Tests, outcome.Result.Summary);
-            Issues.ErrorMessage = null;
-            int n = outcome.Result.Summary.Findings;
-            _status.Set($"Analysis found {n} issue{(n == 1 ? "" : "s")} in {name}");
+            var outcome = await _analyzer.AnalyzeAsync(path, linked.Token).ConfigureAwait(true);
+            if (outcome.IsSuccess && outcome.Result is not null)
+            {
+                Issues.SetFindings(outcome.Result.Findings);
+                Tests.SetResult(outcome.Result.Tests, outcome.Result.Summary);
+                Issues.ErrorMessage = null;
+                int n = outcome.Result.Summary.Findings;
+                _status.Set($"Analysis found {n} issue{(n == 1 ? "" : "s")} in {name}");
+            }
+            else
+            {
+                Issues.SetFindings(Array.Empty<Finding>());
+                Tests.SetResult(Array.Empty<GeneratedTest>(), null);
+                Issues.ErrorMessage = outcome.Error?.Message;
+                _status.Set("Analysis failed");
+            }
         }
-        else
+        catch (OperationCanceledException)
         {
             Issues.SetFindings(Array.Empty<Finding>());
             Tests.SetResult(Array.Empty<GeneratedTest>(), null);
-            Issues.ErrorMessage = outcome.Error?.Message;
-            _status.Set("Analysis failed");
+            bool timedOut = timeout.IsCancellationRequested && !ct.IsCancellationRequested;
+            var msg = timedOut
+                ? $"Analysis timed out after {(int)AnalyzeTimeout.TotalSeconds}s"
+                : "Analysis cancelled";
+            Issues.ErrorMessage = msg;
+            _status.Set(msg);
+        }
+        finally
+        {
+            _analyzeCts = null;
+            IsAnalyzing = false;
         }
     }
 

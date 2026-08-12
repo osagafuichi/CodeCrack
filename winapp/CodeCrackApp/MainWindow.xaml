@@ -15,6 +15,7 @@
         <CommandBinding Command="Find"   Executed="OnFind"/>
         <CommandBinding Command="{x:Static local:Commands.Run}"     Executed="OnRun"     CanExecute="OnCanRun"/>
         <CommandBinding Command="{x:Static local:Commands.Analyze}" Executed="OnAnalyze" CanExecute="OnCanAnalyze"/>
+        <CommandBinding Command="{x:Static local:Commands.CancelAnalyze}" Executed="OnCancelAnalyze" CanExecute="OnCanCancelAnalyze"/>
         <CommandBinding Command="{x:Static local:Commands.Preferences}" Executed="OnPreferences"/>
     </Window.CommandBindings>
     <Window.InputBindings>
@@ -48,6 +49,7 @@
             <MenuItem Header="_Run">
                 <MenuItem Header="_Run"       Command="{x:Static local:Commands.Run}"/>
                 <MenuItem Header="_Analyze"   Command="{x:Static local:Commands.Analyze}"/>
+                <MenuItem Header="Cancel A_nalyze" Command="{x:Static local:Commands.CancelAnalyze}"/>
             </MenuItem>
         </Menu>
         <TextBlock x:Name="StatusText" DockPanel.Dock="Bottom" Padding="6,3"
