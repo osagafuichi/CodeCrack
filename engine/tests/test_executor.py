@@ -70,8 +70,9 @@ def test_infinite_loop_is_killed_without_hanging():
 
 
 @pytest.mark.skipif(
-    sys.platform == "win32",
-    reason="RLIMIT_AS memory cap is POSIX-only; Windows uses wall-timeout + taskkill",
+    sys.platform != "linux",
+    reason="RLIMIT_AS is reliably enforced only on Linux; macOS silently ignores it "
+    "(4 GiB alloc succeeds under a 256 MiB cap) and Windows uses wall-timeout + taskkill",
 )
 def test_memory_cap_enforced_by_rlimit():
     # 4 GiB allocation under a 256 MiB address-space cap must be stopped.
