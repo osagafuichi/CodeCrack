@@ -15,11 +15,25 @@ def _configure_stdout() -> None:
         sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace")
 
 
+def _decode(data: bytes) -> str:
+    """Decode source bytes tolerantly: real-world Windows files are often not UTF-8.
+
+    Try UTF-8 (with a BOM stripped if present), then CP-1252 (the common Windows
+    Latin-1 superset), then a lossy UTF-8 pass so a stray byte never crashes analysis.
+    """
+    for encoding in ("utf-8-sig", "cp1252"):
+        try:
+            return data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return data.decode("utf-8", errors="replace")
+
+
 def _read(path: str) -> str:
     if path == "-":
-        return sys.stdin.read()
-    with open(path, "r", encoding="utf-8") as fh:
-        return fh.read()
+        return _decode(sys.stdin.buffer.read())
+    with open(path, "rb") as fh:
+        return _decode(fh.read())
 
 
 def main(argv: list[str] | None = None) -> int:
