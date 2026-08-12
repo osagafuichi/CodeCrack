@@ -34,9 +34,22 @@ public sealed class JsonAppSettings : IAppSettings
     public JsonAppSettings(string path)
     {
         _path = path;
-        _m = File.Exists(path)
-            ? JsonSerializer.Deserialize<Model>(File.ReadAllText(path), Options) ?? new Model()
-            : new Model();
+        _m = Load(path);
+    }
+
+    // A corrupt or unreadable settings file must never crash the app -> fall back to defaults.
+    private static Model Load(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+                return JsonSerializer.Deserialize<Model>(File.ReadAllText(path), Options) ?? new Model();
+        }
+        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+        {
+            // ignored: use defaults
+        }
+        return new Model();
     }
 
     public int FontSize { get => _m.FontSize; set => _m.FontSize = value; }
@@ -48,7 +61,15 @@ public sealed class JsonAppSettings : IAppSettings
 
     public void Save()
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-        File.WriteAllText(_path, JsonSerializer.Serialize(_m, Options));
+        // Best-effort persistence: never crash on an unwritable/redirected %APPDATA%.
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
+            File.WriteAllText(_path, JsonSerializer.Serialize(_m, Options));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            // ignored: settings simply don't persist this time
+        }
     }
 }

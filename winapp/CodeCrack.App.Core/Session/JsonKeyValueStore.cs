@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -15,9 +16,22 @@ public sealed class JsonKeyValueStore : IKeyValueStore
     public JsonKeyValueStore(string path)
     {
         _path = path;
-        _root = File.Exists(path)
-            ? JsonNode.Parse(File.ReadAllText(path)) as JsonObject ?? new JsonObject()
-            : new JsonObject();
+        _root = Load(path);
+    }
+
+    // A corrupt or unreadable session file must never crash the app -> start empty.
+    private static JsonObject Load(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+                return JsonNode.Parse(File.ReadAllText(path)) as JsonObject ?? new JsonObject();
+        }
+        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+        {
+            // ignored: start with an empty store
+        }
+        return new JsonObject();
     }
 
     public string? GetString(string key) =>
@@ -38,7 +52,15 @@ public sealed class JsonKeyValueStore : IKeyValueStore
 
     private void Flush()
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-        File.WriteAllText(_path, _root.ToJsonString(Pretty));
+        // Best-effort persistence: never crash on an unwritable/redirected %APPDATA%.
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
+            File.WriteAllText(_path, _root.ToJsonString(Pretty));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            // ignored: session simply doesn't persist this time
+        }
     }
 }
